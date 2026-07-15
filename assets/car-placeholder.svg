@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">PaddockScan garage vehicle placeholder</title>
+  <desc id="desc">A premium dark garage with a sports car silhouette and gold PaddockScan accents.</desc>
+
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#05080c"/>
+      <stop offset="0.56" stop-color="#101923"/>
+      <stop offset="1" stop-color="#050608"/>
+    </linearGradient>
+
+    <linearGradient id="door" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#172430"/>
+      <stop offset="0.55" stop-color="#0c141c"/>
+      <stop offset="1" stop-color="#080c11"/>
+    </linearGradient>
+
+    <linearGradient id="pillar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#070a0e"/>
+      <stop offset="0.48" stop-color="#24313b"/>
+      <stop offset="1" stop-color="#090d11"/>
+    </linearGradient>
+
+    <linearGradient id="carBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26323c"/>
+      <stop offset="0.46" stop-color="#151d24"/>
+      <stop offset="1" stop-color="#080b0e"/>
+    </linearGradient>
+
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#93b4c4" stop-opacity="0.34"/>
+      <stop offset="0.52" stop-color="#263b49" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#05080a" stop-opacity="0.76"/>
+    </linearGradient>
+
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#111820"/>
+      <stop offset="1" stop-color="#020304"/>
+    </linearGradient>
+
+    <radialGradient id="goldGlow" cx="50%" cy="56%" r="54%">
+      <stop offset="0" stop-color="#e7bd52" stop-opacity="0.27"/>
+      <stop offset="0.48" stop-color="#d4a735" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#d4a735" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="headlamp" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff9dc" stop-opacity="0.95"/>
+      <stop offset="0.35" stop-color="#f4d66d" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#e1b742" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="wheel" cx="50%" cy="44%" r="56%">
+      <stop offset="0" stop-color="#26313a"/>
+      <stop offset="0.52" stop-color="#11171c"/>
+      <stop offset="1" stop-color="#020304"/>
+    </radialGradient>
+
+    <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+
+    <filter id="carShadow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+
+    <pattern id="slats" width="12" height="26" patternUnits="userSpaceOnUse">
+      <rect width="12" height="26" fill="transparent"/>
+      <path d="M0 25.5H12" stroke="#33424e" stroke-width="1" opacity="0.34"/>
+      <path d="M0 1H12" stroke="#05080b" stroke-width="1" opacity="0.75"/>
+    </pattern>
+
+    <pattern id="floorGrid" width="90" height="64" patternUnits="userSpaceOnUse" patternTransform="skewX(-18)">
+      <path d="M0 0H90M0 0V64" fill="none" stroke="#7b8a94" stroke-width="1" opacity="0.08"/>
+    </pattern>
+  </defs>
+
+  <!-- Garage environment -->
+  <rect width="1200" height="700" fill="url(#background)"/>
+  <rect width="1200" height="700" fill="url(#goldGlow)"/>
+
+  <path d="M0 0H1200V542H0Z" fill="#070b0f"/>
+  <rect x="132" y="68" width="936" height="462" rx="10" fill="url(#door)" stroke="#2a3843" stroke-width="3"/>
+  <rect x="145" y="81" width="910" height="436" rx="4" fill="url(#slats)" opacity="0.9"/>
+
+  <!-- Header beam and lights -->
+  <path d="M72 52H1128L1080 110H120Z" fill="#111920" stroke="#2e3b45" stroke-width="3"/>
+  <path d="M278 81H463" stroke="#f5d66e" stroke-width="5" stroke-linecap="round" opacity="0.88"/>
+  <path d="M737 81H922" stroke="#f5d66e" stroke-width="5" stroke-linecap="round" opacity="0.88"/>
+  <path d="M313 89 217 347H527L430 89Z" fill="#f4d66d" opacity="0.035"/>
+  <path d="M770 89 674 347H984L887 89Z" fill="#f4d66d" opacity="0.035"/>
+
+  <!-- Structural pillars -->
+  <path d="M48 34H143L171 542H18Z" fill="url(#pillar)" stroke="#2f3b44" stroke-width="3"/>
+  <path d="M1057 34H1152L1182 542H1029Z" fill="url(#pillar)" stroke="#2f3b44" stroke-width="3"/>
+  <path d="M67 110H144M1056 110H1133" stroke="#d7ac3f" stroke-width="4" opacity="0.72"/>
+
+  <!-- Side wall details -->
+  <g opacity="0.55">
+    <rect x="78" y="176" width="48" height="132" rx="4" fill="#080c10" stroke="#40505c" stroke-width="2"/>
+    <circle cx="102" cy="204" r="8" fill="#d7ac3f"/>
+    <path d="M91 237H113M91 259H113M91 281H113" stroke="#667985" stroke-width="4" stroke-linecap="round"/>
+    <rect x="1074" y="176" width="48" height="132" rx="4" fill="#080c10" stroke="#40505c" stroke-width="2"/>
+    <circle cx="1098" cy="204" r="8" fill="#d7ac3f"/>
+    <path d="M1087 237H1109M1087 259H1109M1087 281H1109" stroke="#667985" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- Floor -->
+  <path d="M0 508H1200V700H0Z" fill="url(#floor)"/>
+  <path d="M0 508H1200" stroke="#dab244" stroke-width="4" opacity="0.7"/>
+  <path d="M0 536H1200V700H0Z" fill="url(#floorGrid)"/>
+  <path d="M340 700 520 508M860 700 680 508" stroke="#85939b" stroke-width="2" opacity="0.1"/>
+  <path d="M470 700 555 508M730 700 645 508" stroke="#85939b" stroke-width="2" opacity="0.07"/>
+
+  <!-- Car shadow and reflected glow -->
+  <ellipse cx="600" cy="576" rx="390" ry="44" fill="#000" opacity="0.8" filter="url(#carShadow)"/>
+  <ellipse cx="600" cy="548" rx="360" ry="52" fill="#d9ad3f" opacity="0.085" filter="url(#softGlow)"/>
+
+  <!-- Vehicle -->
+  <g>
+    <!-- Wheels behind body -->
+    <g>
+      <circle cx="345" cy="541" r="76" fill="#030405"/>
+      <circle cx="345" cy="541" r="58" fill="url(#wheel)" stroke="#53606a" stroke-width="3"/>
+      <circle cx="345" cy="541" r="31" fill="#0c1115" stroke="#9ca8ae" stroke-width="3"/>
+      <circle cx="345" cy="541" r="8" fill="#d4a63a"/>
+      <path d="M345 512V570M316 541H374M325 521 365 561M365 521 325 561" stroke="#71808a" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <g>
+      <circle cx="855" cy="541" r="76" fill="#030405"/>
+      <circle cx="855" cy="541" r="58" fill="url(#wheel)" stroke="#53606a" stroke-width="3"/>
+      <circle cx="855" cy="541" r="31" fill="#0c1115" stroke="#9ca8ae" stroke-width="3"/>
+      <circle cx="855" cy="541" r="8" fill="#d4a63a"/>
+      <path d="M855 512V570M826 541H884M835 521 875 561M875 521 835 561" stroke="#71808a" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Main silhouette -->
+    <path d="M188 497
+             C207 454 242 428 302 420
+             L387 408
+             C430 346 482 307 555 295
+             C620 284 706 292 762 318
+             C798 335 826 365 851 407
+             L930 419
+             C974 426 1007 450 1022 486
+             L1037 525
+             C1044 545 1031 561 1008 561
+             H932
+             C927 493 895 457 855 457
+             C812 457 779 494 775 561
+             H425
+             C421 494 388 457 345 457
+             C304 457 272 493 267 561
+             H194
+             C168 561 156 545 164 523Z"
+          fill="url(#carBody)" stroke="#dce4e8" stroke-width="7" stroke-linejoin="round"/>
+
+    <!-- Roofline and glass -->
+    <path d="M407 407
+             C448 351 495 322 559 313
+             C624 304 693 310 745 333
+             C780 349 805 374 827 407Z"
+          fill="url(#glass)" stroke="#9aabb5" stroke-width="4"/>
+    <path d="M566 314 552 407M731 329 675 407" stroke="#72818b" stroke-width="4" opacity="0.75"/>
+
+    <!-- Body sculpting -->
+    <path d="M206 497C312 479 403 470 501 469H788C884 469 950 478 1008 497" fill="none" stroke="#62717b" stroke-width="4" opacity="0.64"/>
+    <path d="M435 489H765" stroke="#d2aa42" stroke-width="4" stroke-linecap="round" opacity="0.78"/>
+    <path d="M457 521H743" stroke="#53616b" stroke-width="3" opacity="0.6"/>
+    <path d="M262 526H185M938 526H1017" stroke="#66757f" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- Front grille and plate -->
+    <path d="M482 520H718L695 556H505Z" fill="#06080a" stroke="#44515a" stroke-width="3"/>
+    <path d="M544 530H656" stroke="#7f8d96" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+    <rect x="552" y="537" width="96" height="25" rx="4" fill="#f0d167" stroke="#fff0a8" stroke-width="2"/>
+    <text x="600" y="555" text-anchor="middle" fill="#111318" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="2">SCAN ME</text>
+
+    <!-- Headlights -->
+    <ellipse cx="283" cy="475" rx="90" ry="44" fill="url(#headlamp)" opacity="0.22" filter="url(#softGlow)"/>
+    <ellipse cx="917" cy="475" rx="90" ry="44" fill="url(#headlamp)" opacity="0.22" filter="url(#softGlow)"/>
+    <path d="M224 473C257 457 291 452 333 456L312 482C279 487 252 483 224 473Z" fill="#f6e7a4" stroke="#fff7d2" stroke-width="3" opacity="0.94"/>
+    <path d="M976 473C943 457 909 452 867 456L888 482C921 487 948 483 976 473Z" fill="#f6e7a4" stroke="#fff7d2" stroke-width="3" opacity="0.94"/>
+
+    <!-- Mirrors -->
+    <path d="M388 409 345 416 361 438 403 430Z" fill="#151d23" stroke="#aab6bd" stroke-width="3"/>
+    <path d="M812 409 855 416 839 438 797 430Z" fill="#151d23" stroke="#aab6bd" stroke-width="3"/>
+  </g>
+
+  <!-- Branding -->
+  <g transform="translate(600 640)">
+    <path d="M-183 0H-76M76 0H183" stroke="#d5aa3d" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+    <circle r="5" fill="#e0b74c"/>
+    <text x="0" y="-18" text-anchor="middle" fill="#f3f5f6" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" letter-spacing="3">PADDOCKSCAN</text>
+    <text x="0" y="17" text-anchor="middle" fill="#d9b24a" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" letter-spacing="6">YOUR DIGITAL GARAGE</text>
+  </g>
+</svg>
