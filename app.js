@@ -40,6 +40,7 @@
   const state = {
     mode: firebaseReady ? 'firebase' : 'demo',
     user: null, admin: false, settings: {}, posts: [], submissions: [], reports: [], users: [], profile: null,
+cloudGarage: [],
     selectedImages: [], editorialImage: null, deferredInstall: null, lastPublicRoute: 'home'
   };
 
@@ -280,7 +281,19 @@
       form.reset(); state.selectedImages=[]; renderImagePreviews(); $('#storyCount').textContent='0'; $('#submissionStatus').textContent=status==='draft'?'Draft saved in My Garage.':'Submitted for review.'; toast(status==='draft'?'Draft saved':'Submission sent'); await refreshFirebaseData(); renderAll();
     }catch(error){console.error(error);$('#submissionStatus').textContent=error.message||'Could not save submission.';}
   }
+function asDate(value) {
+  if (!value) return new Date(0);
 
+  if (typeof value.toDate === "function") {
+    return value.toDate();
+  }
+
+  if (value.seconds) {
+    return new Date(value.seconds * 1000);
+  }
+
+  return new Date(value);
+}
   function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
 
   function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Owner</span><strong>${escapeHtml(item.ownerName)}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button></div>`; $('#reviewDialog').showModal();}
