@@ -1,16 +1,57 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
-    function signedIn() { return request.auth != null; }
-    function admin() { return signedIn() && request.auth.token.admin == true; }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function admin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
     function validImage() {
       return request.resource.size < 8 * 1024 * 1024
-        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+        && request.resource.contentType.matches(
+          'image/(jpeg|png|webp)'
+        );
     }
+
     match /community/{userId}/{submissionId}/{fileName} {
-      allow read: if admin() || (signedIn() && request.auth.uid == userId);
-      allow create, update: if signedIn() && request.auth.uid == userId && validImage();
-      allow delete: if admin() || (signedIn() && request.auth.uid == userId);
+      allow read: if admin()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+        );
+
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && validImage();
+
+      allow delete: if admin()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+        );
+    }
+
+    match /users/{userId}/garage/{scanId}/{fileName} {
+      allow read: if admin()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+        );
+
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && validImage();
+
+      allow delete: if admin()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+        );
     }
   }
 }
