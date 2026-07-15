@@ -119,11 +119,69 @@
         <aside class="panel guidance-panel"><p class="eyebrow">BEFORE YOU SEND</p><h2>Make it feature-ready</h2><ul class="guidance-list"><li><b>01</b><span><strong>Use a clear main photo</strong><small>Landscape images look best in the community grid.</small></span></li><li><b>02</b><span><strong>Keep private details out</strong><small>Avoid addresses, paperwork and precise location information.</small></span></li><li><b>03</b><span><strong>Tell the real story</strong><small>Ownership memories matter more than a list of specifications.</small></span></li><li><b>04</b><span><strong>Check external links</strong><small>Only add a website or social page you are happy to show publicly.</small></span></li></ul></aside>
       </section>
     </section>
+<section class="view" data-view="garage">
+  <div class="page-hero">
+    <p class="eyebrow">YOUR PADDOCKSCAN ACCOUNT</p>
+    <h1>My Garage</h1>
+    <p>Your private app vehicles and community submissions in one place.</p>
+  </div>
 
-    <section class="view" data-view="garage">
-      <div class="page-hero"><p class="eyebrow">YOUR PADDOCKSCAN ACCOUNT</p><h1>My Garage</h1><p>Manage private drafts and follow the status of your submissions.</p></div>
-      <section class="section compact-top"><div id="garageGate" class="auth-gate"></div><div id="garageContent" hidden><div class="profile-strip"><div id="profileAvatar" class="large-avatar">PS</div><div><h2 id="profileName">PaddockScan user</h2><p id="profileEmail"></p></div><button id="editProfileButton" class="button button-secondary button-small">Edit profile</button></div><div id="garageStats" class="stat-cards"></div><div class="section-heading small"><div><p class="eyebrow">PRIVATE SUBMISSIONS</p><h2>Your entries</h2></div><a href="#submit" class="button button-small">New submission</a></div><div id="mySubmissionList" class="submission-list"></div></div></section>
-    </section>
+  <section class="section compact-top">
+    <div id="garageGate" class="auth-gate"></div>
+
+    <div id="garageContent" hidden>
+      <div class="profile-strip">
+        <div id="profileAvatar" class="large-avatar">PS</div>
+
+        <div>
+          <h2 id="profileName">PaddockScan user</h2>
+          <p id="profileEmail"></p>
+        </div>
+
+        <button
+          id="editProfileButton"
+          class="button button-secondary button-small">
+          Edit profile
+        </button>
+      </div>
+
+      <div id="garageStats" class="stat-cards"></div>
+
+      <div class="section-heading small">
+        <div>
+          <p class="eyebrow">SYNCED FROM THE APP</p>
+          <h2>Your vehicle Garage</h2>
+          <p>
+            Private scans saved in the PaddockScan Android app appear here
+            when you use the same Google account.
+          </p>
+        </div>
+
+        <button
+          id="refreshGarageButton"
+          class="button button-secondary button-small"
+          type="button">
+          Refresh
+        </button>
+      </div>
+
+      <div id="cloudGarageList" class="submission-list"></div>
+
+      <div class="section-heading small">
+        <div>
+          <p class="eyebrow">COMMUNITY DRAFTS</p>
+          <h2>Your entries</h2>
+        </div>
+
+        <a href="#submit" class="button button-small">
+          New submission
+        </a>
+      </div>
+
+      <div id="mySubmissionList" class="submission-list"></div>
+    </div>
+  </section>
+</section>
 
     <section class="view" data-view="about">
       <div class="page-hero"><p class="eyebrow">ABOUT PADDOCKSCAN</p><h1>Vehicle intelligence with a human story.</h1><p>PaddockScan combines vehicle identification, useful information and a community built around genuine owners.</p></div>
