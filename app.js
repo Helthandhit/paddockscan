@@ -54,37 +54,32 @@
   const dateText = value => asDate(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const initials = name => String(name || 'PS').trim().split(/\s+/).slice(0,2).map(p => p[0]?.toUpperCase() || '').join('') || 'PS';
-  const safeUrl = value => { try { if (!value) return ''; const uconst safeUrl = value => {
-  try {
-    if (!value) return '';
+  const safeUrl = value => {
+    try {
+      if (!value) return '';
+      const url = new URL(String(value).trim());
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch {
+      return '';
+    }
+  };
 
-    const url = new URL(String(value).trim());
+  const normaliseWebsiteUrl = value => {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
 
-    return ['http:', 'https:'].includes(url.protocol)
-      ? url.href
-      : '';
-  } catch {
-    return '';
-  }
-};
+    let candidate = trimmed;
 
-const normaliseWebsiteUrl = value => {
-  const trimmed = String(value || '').trim();
+    if (/^http:\/\//i.test(candidate)) {
+      candidate = candidate.replace(/^http:\/\//i, 'https://');
+    } else if (!/^https:\/\//i.test(candidate)) {
+      candidate = /^www\./i.test(candidate)
+        ? `https://${candidate}`
+        : `https://www.${candidate}`;
+    }
 
-  if (!trimmed) return '';
-
-  let candidate = trimmed;
-
-  if (/^http:\/\//i.test(candidate)) {
-    candidate = candidate.replace(/^http:\/\//i, 'https://');
-  } else if (!/^https:\/\//i.test(candidate)) {
-    candidate = /^www\./i.test(candidate)
-      ? `https://${candidate}`
-      : `https://www.${candidate}`;
-  }
-
-  return safeUrl(candidate);
-};rl = new URL(value); return ['http:','https:'].includes(url.protocol) ? url.href : ''; } catch { return ''; } };
+    return safeUrl(candidate);
+  };
   const slug = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
   const uid = () => state.user?.uid || 'demo-user';
 
@@ -323,7 +318,7 @@ const normaliseWebsiteUrl = value => {
     const form=$('#submissionForm'); if(status==='pending'&&!form.reportValidity())return;
     if(state.settings.submissionsOpen===false&&status==='pending'){toast('Submissions are paused.');return;}
     const data=Object.fromEntries(new FormData(form).entries());
-    const item={ownerUid:uid(),ownerName:String(data.ownerName||state.profile?.displayName||state.user?.displayName||'Demo owner').trim(),location:String(data.location||'').trim(),vehicle:String(data.vehicle||'').trim(),year:String(data.year||'').trim(),category:String(data.category||'Community'),website:safeUwebsite:normaliseWebsiteUrl(data.website)rl(data.website),story:String(data.story||'').trim(),summary:String(data.story||'').trim().slice(0,280),hidePlate:data.hidePlate==='on',consent:data.consent==='on',status,createdAt:nowIso(),updatedAt:nowIso()};
+    const item={ownerUid:uid(),ownerName:String(data.ownerName||state.profile?.displayName||state.user?.displayName||'Demo owner').trim(),location:String(data.location||'').trim(),vehicle:String(data.vehicle||'').trim(),year:String(data.year||'').trim(),category:String(data.category||'Community'),website:normaliseWebsiteUrl(data.website),story:String(data.story||'').trim(),summary:String(data.story||'').trim().slice(0,280),hidePlate:data.hidePlate==='on',consent:data.consent==='on',status,createdAt:nowIso(),updatedAt:nowIso()};
     if(!item.vehicle){toast('Add the vehicle name first.');return;}
     $('#submissionStatus').textContent='Saving…';
     try{
@@ -332,16 +327,16 @@ const normaliseWebsiteUrl = value => {
         const ref=db.collection('submissions').doc(); item.imageUrls=await uploadFiles(state.selectedImages,ref.id,state.user.uid); item.ownerEmail=state.user.email||''; item.createdAt=firebase.firestore.FieldValue.serverTimestamp(); item.updatedAt=item.createdAt; await ref.set(item);
       } else { item.id=`sub-${Date.now()}`; item.imageUrls=state.selectedImages.length?await filesToDataUrls(state.selectedImages):['assets/car-placeholder.svg']; state.submissions.unshift(item); saveDemo(); }
       form.reset(); state.selectedImages=[]; renderImagePreviews(); $('#storyCount').textContent='0'; $('#submissionStatus').textContent=status==='draft'?'Draft saved in My Garage.':'Submitted for review.'; toast(status==='draft'?'Draft saved':'Submission sent'); await refreshFirebaseData(); renderAll();
-    }catch(error){console.error}catch(error){
-  console.error(error);
+    } catch (error) {
+      console.error(error);
 
-  const message =
-    error?.code === 'storage/unauthorized'
-      ? 'Photo upload was blocked by Firebase Storage rules. Publish the Storage rules, then sign out and back in.'
-      : (error.message || 'Could not save submission.');
+      const message =
+        error?.code === 'storage/unauthorized'
+          ? 'Photo upload was blocked by Firebase Storage rules. Publish the Storage rules, then sign out and back in.'
+          : (error.message || 'Could not save submission.');
 
-  $('#submissionStatus').textContent = message;
-}(error);$('#submissionStatus').textContent=error.message||'Could not save submission.';}
+      $('#submissionStatus').textContent = message;
+    }
   }
 
   function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
@@ -352,13 +347,13 @@ const normaliseWebsiteUrl = value => {
 
   async function saveSettings(event){event.preventDefault();const f=event.currentTarget;const next={heroEyebrow:f.heroEyebrow.value.trim(),heroTitle:f.heroTitle.value.trim(),heroSubtitle:f.heroSubtitle.value.trim(),competitionTitle:f.competitionTitle.value.trim(),announcement:f.announcement.value.trim(),accent:f.accent.value,playStoreUrl:safeUrl(f.playStoreUrl.value),submissionsOpen:f.submissionsOpen.value==='true'};try{if(state.mode==='firebase')await db.collection('siteSettings').doc('public').set({...next,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});else{state.settings={...state.settings,...next};saveDemo();}state.settings={...state.settings,...next};applySettings();$('#designerStatus').textContent='Homepage published.';toast('Homepage updated');}catch(e){$('#designerStatus').textContent=e.message||'Could not publish.';}}
 
-  async function publishEditorial(event){event.preventDefault();const f=event.currentTarget;const data=Object.fromEntries(new FormData(f).entries());const post={title:String(data.title).trim(),vehicle:String(data.title).trim(),ownerName:'PaddockScan',location:'Editorial',year:String(data.year||'Feature'),category:String(data.category||'PaddockScan editorial'),summary:String(data.summary).trim(),story:String(data.story).trim(),website:safeUrl(data.website),published:true,featured:false,createdAt:nowIso()};try{if(state.mode==='firebase'){const ref=db.collection('posts').doc();if(state.editorialImage){const u=(await uploadFiles([state.editorialImage],`editorial-${ref.id}`,state.user.uid))[0];post.imageUrl=u}else post.imageUrl='assets/car-placeholder.svg';post.createdAt=firebase.firestore.FieldValue.serverTimestamp();await ref.set(post)}else{post.id=`post-${Date.now()}`;post.imageUrl=state.editorialImage?(await filesToDataUrls([state.editorialImage]))[0]:'assets/car-placeholder.svg';state.posts.unshift(post);saveDemo()}f.reset();state.editorialImage=null;$('#editorialImagePreview img').src='assets/car-placeholder.svg';$('#editorialStatus').textContent='Post published.';await refreshFirebaseData();renderAll();toast('Editorial post published')}catch(e){$('#editorialStatus').textContent=e.message||'Publish failed'}}
+  async function publishEditorial(event){event.preventDefault();const f=event.currentTarget;const data=Object.fromEntries(new FormData(f).entries());const post={title:String(data.title).trim(),vehicle:String(data.title).trim(),ownerName:'PaddockScan',location:'Editorial',year:String(data.year||'Feature'),category:String(data.category||'PaddockScan editorial'),summary:String(data.summary).trim(),story:String(data.story).trim(),website:normaliseWebsiteUrl(data.website),published:true,featured:false,createdAt:nowIso()};try{if(state.mode==='firebase'){const ref=db.collection('posts').doc();if(state.editorialImage){const u=(await uploadFiles([state.editorialImage],`editorial-${ref.id}`,state.user.uid))[0];post.imageUrl=u}else post.imageUrl='assets/car-placeholder.svg';post.createdAt=firebase.firestore.FieldValue.serverTimestamp();await ref.set(post)}else{post.id=`post-${Date.now()}`;post.imageUrl=state.editorialImage?(await filesToDataUrls([state.editorialImage]))[0]:'assets/car-placeholder.svg';state.posts.unshift(post);saveDemo()}f.reset();state.editorialImage=null;$('#editorialImagePreview img').src='assets/car-placeholder.svg';$('#editorialStatus').textContent='Post published.';await refreshFirebaseData();renderAll();toast('Editorial post published')}catch(e){$('#editorialStatus').textContent=e.message||'Publish failed'}}
 
   async function postAction(id,action){try{if(action==='feature'){if(state.mode==='firebase'){const batch=db.batch();state.posts.forEach(p=>batch.update(db.collection('posts').doc(p.id),{featured:p.id===id}));await batch.commit()}else state.posts.forEach(p=>p.featured=p.id===id)}else if(action==='delete'){if(!confirm('Remove this public post?'))return;if(state.mode==='firebase')await db.collection('posts').doc(id).delete();else state.posts=state.posts.filter(p=>p.id!==id)}if(state.mode==='demo')saveDemo();await refreshFirebaseData();renderAll()}catch(e){toast(e.message||'Action failed')}}
 
   async function submitReport(event){event.preventDefault();const d=Object.fromEntries(new FormData(event.currentTarget).entries());const report={postId:d.postId,reason:d.reason,details:String(d.details||''),reporterUid:uid(),status:'open',createdAt:nowIso()};if(state.mode==='firebase'){report.createdAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection('reports').add(report)}else{report.id=`rep-${Date.now()}`;state.reports.unshift(report);saveDemo()}event.currentTarget.reset();$('#reportDialog').close();toast('Report sent for review');renderAll()}
 
-  async function saveProfile(event){event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget).entries());const profile={displayName:String(data.displayName).trim(),location:String(data.location||'').trim(),bio:String(data.bio||'').trim(),website:safeUrl(data.website),email:state.user?.email||'',updatedAt:nowIso()};if(state.mode==='firebase'){profile.updatedAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection('users').doc(state.user.uid).set(profile,{merge:true})}else{state.profile=profile;saveDemo()}state.profile={...(state.profile||{}),...profile};$('#profileDialog').close();renderAll();toast('Profile saved')}
+  async function saveProfile(event){event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget).entries());const profile={displayName:String(data.displayName).trim(),location:String(data.location||'').trim(),bio:String(data.bio||'').trim(),website:normaliseWebsiteUrl(data.website),email:state.user?.email||'',updatedAt:nowIso()};if(state.mode==='firebase'){profile.updatedAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection('users').doc(state.user.uid).set(profile,{merge:true})}else{state.profile=profile;saveDemo()}state.profile={...(state.profile||{}),...profile};$('#profileDialog').close();renderAll();toast('Profile saved')}
 
   function exportBackup(){const blob=new Blob([JSON.stringify({version:1,exportedAt:nowIso(),settings:state.settings,posts:state.posts,submissions:state.submissions,reports:state.reports,users:state.users,profile:state.profile},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`paddockscan-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
