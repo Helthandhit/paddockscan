@@ -39,8 +39,7 @@
   let app = null, auth = null, db = null, storage = null, appCheck = null;
   const state = {
     mode: firebaseReady ? 'firebase' : 'demo',
-    user: null, admin: false, settings: {}, posts: [], submissions: [], reports: [], users: [], profile: null,
-cloudGarage: [],
+    user: null, admin: false, settings: {}, posts: [], submissions: [], reports: [], users: [], profile: null, cloudGarage: [],
     selectedImages: [], editorialImage: null, deferredInstall: null, lastPublicRoute: 'home'
   };
 
@@ -121,9 +120,23 @@ cloudGarage: [],
       state.posts = postsSnap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
       if (state.user) {
         const profileSnap = await db.collection('users').doc(state.user.uid).get(); state.profile = profileSnap.exists ? profileSnap.data() : null;
-        const mine = await db.collection('submissions').where('ownerUid','==',state.user.uid).limit(50).get();
+        const [mine, garageSnap] = await Promise.all([
+          db.collection('submissions').where('ownerUid','==',state.user.uid).limit(50).get(),
+          db.collection('users').doc(state.user.uid).collection('garage').limit(100).get()
+        ]);
         state.submissions = mine.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
-      } else state.submissions = [];
+        state.cloudGarage = await Promise.all(garageSnap.docs.map(async d => {
+          const data = { id:d.id, ...d.data() };
+          try { data.result = data.resultJson ? JSON.parse(data.resultJson) : {}; } catch { data.result = {}; }
+          const imagePath = data.cutoutStoragePath || data.originalStoragePath;
+          if (imagePath) {
+            try { data.imageUrl = await storage.ref(imagePath).getDownloadURL(); }
+            catch { data.imageUrl = 'assets/car-placeholder.svg'; }
+          } else data.imageUrl = 'assets/car-placeholder.svg';
+          return data;
+        }));
+        state.cloudGarage.sort((a,b)=>asDate(b.updatedAt || b.createdAtIso)-asDate(a.updatedAt || a.createdAtIso));
+      } else { state.submissions = []; state.cloudGarage = []; }
       if (state.admin) {
         const [subs, reports, users] = await Promise.all([
           db.collection('submissions').limit(100).get(), db.collection('reports').limit(100).get(), db.collection('users').limit(100).get()
@@ -190,14 +203,24 @@ cloudGarage: [],
     return `<article class="submission-item"><img src="${escapeHtml(img)}" alt=""><div class="submission-main"><span class="status-pill status-${escapeHtml(item.status||'draft')}">${escapeHtml((item.status||'draft').replaceAll('_',' '))}</span><h3>${escapeHtml(item.vehicle || 'Untitled vehicle')}</h3><p>${escapeHtml(item.ownerName || '')} · ${dateText(item.createdAt)}</p></div>${actions}</article>`;
   }
 
+  function cloudGarageItem(item) {
+    const result = item.result || {};
+    const vehicle = item.title || result.title || [result.year, result.make, result.model].filter(Boolean).join(' ') || 'Saved vehicle';
+    const registration = item.registration || result.registration?.normalizedRegistration || '';
+    const detailBits = [registration, result.fuelType || result.fuel, result.bodyStyle, result.year].filter(Boolean);
+    return `<article class="submission-item"><img src="${escapeHtml(item.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(vehicle)}"><div class="submission-main"><span class="status-pill status-approved">private app scan</span><h3>${escapeHtml(vehicle)}</h3><p>${escapeHtml(detailBits.join(' · ') || 'Synced from PaddockScan')}</p><small>${dateText(item.updatedAt || item.createdAtIso)}</small></div></article>`;
+  }
+
   function renderGarage() {
     const gate = $('#garageGate'), content = $('#garageContent');
     if (!state.user) { gate.innerHTML = '<div class="panel"><h2>Sign in to open your Garage</h2><p>Your drafts and submission history appear here.</p><button class="button" data-auth>Sign in with Google</button></div>'; content.hidden=true; return; }
     gate.innerHTML=''; content.hidden=false;
     $('#profileName').textContent = state.profile?.displayName || state.user.displayName || 'PaddockScan owner'; $('#profileEmail').textContent = state.user.email || 'Demo account'; $('#profileAvatar').textContent = initials(state.profile?.displayName || state.user.displayName);
     const mine = state.admin ? state.submissions.filter(s=>s.ownerUid===uid() || state.mode==='demo') : state.submissions;
-    $('#garageStats').innerHTML = [ ['Drafts',mine.filter(s=>s.status==='draft').length], ['Under review',mine.filter(s=>s.status==='pending').length], ['Published',mine.filter(s=>s.status==='approved').length] ].map(([l,n])=>`<div class="stat-card"><strong>${n}</strong><span>${l}</span></div>`).join('');
-    $('#mySubmissionList').innerHTML = mine.map(i=>submissionItem(i,false)).join('') || '<div class="empty-state"><h3>No submissions yet</h3><p>Your saved drafts will appear here.</p></div>';
+    const cloudCount = state.cloudGarage?.length || 0;
+    $('#garageStats').innerHTML = [ ['App vehicles',cloudCount], ['Drafts',mine.filter(s=>s.status==='draft').length], ['Under review',mine.filter(s=>s.status==='pending').length], ['Published',mine.filter(s=>s.status==='approved').length] ].map(([l,n])=>`<div class="stat-card"><strong>${n}</strong><span>${l}</span></div>`).join('');
+    $('#cloudGarageList').innerHTML = cloudCount ? state.cloudGarage.map(cloudGarageItem).join('') : '<div class="empty-state"><h3>No synced app vehicles yet</h3><p>Sign into the Android app with this same Google account and save a scan to Garage. New saves upload automatically.</p></div>';
+    $('#mySubmissionList').innerHTML = mine.map(i=>submissionItem(i,false)).join('') || '<div class="empty-state"><h3>No community submissions yet</h3><p>Your website drafts will appear here.</p></div>';
   }
 
   function renderHub() {
@@ -281,19 +304,7 @@ cloudGarage: [],
       form.reset(); state.selectedImages=[]; renderImagePreviews(); $('#storyCount').textContent='0'; $('#submissionStatus').textContent=status==='draft'?'Draft saved in My Garage.':'Submitted for review.'; toast(status==='draft'?'Draft saved':'Submission sent'); await refreshFirebaseData(); renderAll();
     }catch(error){console.error(error);$('#submissionStatus').textContent=error.message||'Could not save submission.';}
   }
-function asDate(value) {
-  if (!value) return new Date(0);
 
-  if (typeof value.toDate === "function") {
-    return value.toDate();
-  }
-
-  if (value.seconds) {
-    return new Date(value.seconds * 1000);
-  }
-
-  return new Date(value);
-}
   function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
 
   function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Owner</span><strong>${escapeHtml(item.ownerName)}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button></div>`; $('#reviewDialog').showModal();}
@@ -320,6 +331,7 @@ function asDate(value) {
     $('#installButton').addEventListener('click',async()=>{if(state.deferredInstall){state.deferredInstall.prompt();await state.deferredInstall.userChoice;state.deferredInstall=null;$('#installButton').hidden=true}else toast('Open Chrome menu and choose Add to Home screen')});
     $('#menuButton').addEventListener('click',()=>{const open=$('#mainNav').classList.toggle('open');$('#menuButton').setAttribute('aria-expanded',String(open))});
     $('#accountButton').addEventListener('click',()=>$('#accountDialog').showModal()); $('#hubSignInButton').addEventListener('click',()=>state.user?signOut():signIn());
+    $('#refreshGarageButton').addEventListener('click',async()=>{ if(!state.user)return signIn(); $('#refreshGarageButton').disabled=true; try{await refreshFirebaseData();renderAll();toast('Garage refreshed')}finally{$('#refreshGarageButton').disabled=false} });
     $('#postSearch').addEventListener('input',filterCommunity);$('#categoryFilter').addEventListener('change',filterCommunity);$('#submissionStatusFilter').addEventListener('change',renderAdminLists);
     $('#chooseImagesButton').addEventListener('click',()=>$('#carImages').click());$('#uploadZone').addEventListener('click',e=>{if(e.target.id==='uploadZone'||e.target.classList.contains('upload-placeholder'))$('#carImages').click()});
     $('#carImages').addEventListener('change',e=>{const incoming=[...e.target.files];state.selectedImages=[...state.selectedImages,...incoming].slice(0,MAX_IMAGES);renderImagePreviews();e.target.value=''});
