@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="PaddockScan vehicle placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111a"/>
+      <stop offset="0.55" stop-color="#152431"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="60%" r="50%">
+      <stop offset="0" stop-color="#f4d66d" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#d6ae36" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#bg)"/>
+  <rect width="1200" height="700" fill="url(#glow)"/>
+  <g fill="none" stroke="#f7f7f7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M210 445 286 320q18-31 56-37l190-29q70-10 136 1l184 32q38 7 54 37l70 121" stroke-width="19"/>
+    <path d="M185 455q10-48 67-49h696q58 2 67 49l16 92q5 33-28 33H199q-34 0-29-33z" stroke-width="19"/>
+    <path d="M354 303 419 401h356l73-100" stroke-width="13" opacity=".7"/>
+    <path d="M205 495h162l-55 48H200M995 495H833l55 48h116" stroke-width="15"/>
+    <circle cx="322" cy="577" r="49" stroke-width="18"/>
+    <circle cx="886" cy="577" r="49" stroke-width="18"/>
+  </g>
+  <path d="M170 462h860" stroke="#d6ae36" stroke-width="7" opacity=".95"/>
+  <text x="600" y="655" fill="#f4d66d" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" letter-spacing="8">COMMUNITY VEHICLE</text>
+</svg>
