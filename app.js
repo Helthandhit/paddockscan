@@ -54,7 +54,37 @@
   const dateText = value => asDate(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const initials = name => String(name || 'PS').trim().split(/\s+/).slice(0,2).map(p => p[0]?.toUpperCase() || '').join('') || 'PS';
-  const safeUrl = value => { try { if (!value) return ''; const url = new URL(value); return ['http:','https:'].includes(url.protocol) ? url.href : ''; } catch { return ''; } };
+  const safeUrl = value => { try { if (!value) return ''; const uconst safeUrl = value => {
+  try {
+    if (!value) return '';
+
+    const url = new URL(String(value).trim());
+
+    return ['http:', 'https:'].includes(url.protocol)
+      ? url.href
+      : '';
+  } catch {
+    return '';
+  }
+};
+
+const normaliseWebsiteUrl = value => {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed) return '';
+
+  let candidate = trimmed;
+
+  if (/^http:\/\//i.test(candidate)) {
+    candidate = candidate.replace(/^http:\/\//i, 'https://');
+  } else if (!/^https:\/\//i.test(candidate)) {
+    candidate = /^www\./i.test(candidate)
+      ? `https://${candidate}`
+      : `https://www.${candidate}`;
+  }
+
+  return safeUrl(candidate);
+};rl = new URL(value); return ['http:','https:'].includes(url.protocol) ? url.href : ''; } catch { return ''; } };
   const slug = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
   const uid = () => state.user?.uid || 'demo-user';
 
@@ -293,7 +323,7 @@
     const form=$('#submissionForm'); if(status==='pending'&&!form.reportValidity())return;
     if(state.settings.submissionsOpen===false&&status==='pending'){toast('Submissions are paused.');return;}
     const data=Object.fromEntries(new FormData(form).entries());
-    const item={ownerUid:uid(),ownerName:String(data.ownerName||state.profile?.displayName||state.user?.displayName||'Demo owner').trim(),location:String(data.location||'').trim(),vehicle:String(data.vehicle||'').trim(),year:String(data.year||'').trim(),category:String(data.category||'Community'),website:safeUrl(data.website),story:String(data.story||'').trim(),summary:String(data.story||'').trim().slice(0,280),hidePlate:data.hidePlate==='on',consent:data.consent==='on',status,createdAt:nowIso(),updatedAt:nowIso()};
+    const item={ownerUid:uid(),ownerName:String(data.ownerName||state.profile?.displayName||state.user?.displayName||'Demo owner').trim(),location:String(data.location||'').trim(),vehicle:String(data.vehicle||'').trim(),year:String(data.year||'').trim(),category:String(data.category||'Community'),website:safeUwebsite:normaliseWebsiteUrl(data.website)rl(data.website),story:String(data.story||'').trim(),summary:String(data.story||'').trim().slice(0,280),hidePlate:data.hidePlate==='on',consent:data.consent==='on',status,createdAt:nowIso(),updatedAt:nowIso()};
     if(!item.vehicle){toast('Add the vehicle name first.');return;}
     $('#submissionStatus').textContent='Saving…';
     try{
@@ -302,7 +332,16 @@
         const ref=db.collection('submissions').doc(); item.imageUrls=await uploadFiles(state.selectedImages,ref.id,state.user.uid); item.ownerEmail=state.user.email||''; item.createdAt=firebase.firestore.FieldValue.serverTimestamp(); item.updatedAt=item.createdAt; await ref.set(item);
       } else { item.id=`sub-${Date.now()}`; item.imageUrls=state.selectedImages.length?await filesToDataUrls(state.selectedImages):['assets/car-placeholder.svg']; state.submissions.unshift(item); saveDemo(); }
       form.reset(); state.selectedImages=[]; renderImagePreviews(); $('#storyCount').textContent='0'; $('#submissionStatus').textContent=status==='draft'?'Draft saved in My Garage.':'Submitted for review.'; toast(status==='draft'?'Draft saved':'Submission sent'); await refreshFirebaseData(); renderAll();
-    }catch(error){console.error(error);$('#submissionStatus').textContent=error.message||'Could not save submission.';}
+    }catch(error){console.error}catch(error){
+  console.error(error);
+
+  const message =
+    error?.code === 'storage/unauthorized'
+      ? 'Photo upload was blocked by Firebase Storage rules. Publish the Storage rules, then sign out and back in.'
+      : (error.message || 'Could not save submission.');
+
+  $('#submissionStatus').textContent = message;
+}(error);$('#submissionStatus').textContent=error.message||'Could not save submission.';}
   }
 
   function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
