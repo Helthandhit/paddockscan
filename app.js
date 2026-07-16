@@ -461,7 +461,10 @@
           await db.collection('posts').doc(id).set(post);
           await db.collection('submissions').doc(id).update({
             status: 'approved',
-            historyIncluded: Boolean(historyText)
+            historyIncluded: Boolean(historyText),
+            publishedPostId: id,
+            publishedUrl: `https://paddockscan.com/#post/${id}`,
+            approvedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
         }
       } else {
