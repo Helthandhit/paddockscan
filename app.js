@@ -112,6 +112,7 @@
     try {
       app = firebase.initializeApp(CONFIG.firebase);
       auth = firebase.auth(); db = firebase.firestore(); storage = firebase.storage();
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
       if (CONFIG.appCheckSiteKey) {
         appCheck = firebase.appCheck(); appCheck.activate(CONFIG.appCheckSiteKey, true);
       }
@@ -346,7 +347,7 @@
   function renderAdminLists() {
     const filter=$('#submissionStatusFilter')?.value||'all'; const subs=state.submissions.filter(s=>filter==='all'||s.status===filter);
     $('#adminSubmissionList').innerHTML=subs.map(i=>submissionItem(i,true)).join('')||'<div class="empty-state"><p>No matching submissions.</p></div>';
-    $('#adminPostList').innerHTML=state.posts.map(p=>`<article class="submission-item"><img src="${escapeHtml(p.imageUrl||'assets/car-placeholder.svg')}" alt=""><div class="submission-main"><span class="status-pill status-approved">published</span><h3>${escapeHtml(p.title||p.vehicle)}</h3><p>${escapeHtml(p.ownerName||'PaddockScan')} · ${dateText(p.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-feature-post="${p.id}">${p.featured?'Featured':'Feature'}</button><button class="button button-small danger-button" data-delete-post="${p.id}">Remove</button></div></article>`).join('');
+    $('#adminPostList').innerHTML=state.posts.map(p=>`<article class="submission-item"><img src="${escapeHtml(p.imageUrl||'assets/car-placeholder.svg')}" alt=""><div class="submission-main"><span class="status-pill status-approved">published</span><h3>${escapeHtml(p.title||p.vehicle)}</h3><p>${escapeHtml(p.ownerName||'PaddockScan')} · ${dateText(p.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-edit-post="${p.id}">Edit</button><button class="button button-small button-secondary" data-feature-post="${p.id}">${p.featured?'Featured':'Feature'}</button><button class="button button-small danger-button" data-delete-post="${p.id}">Remove</button></div></article>`).join('');
     $('#reportList').innerHTML=state.reports.map(r=>`<article class="submission-item"><div class="submission-main"><span class="status-pill">${escapeHtml(r.status||'open')}</span><h3>${escapeHtml(r.reason||'Content report')}</h3><p>${escapeHtml(r.details||'No details')} · ${dateText(r.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-resolve-report="${r.id}">Resolve</button></div></article>`).join('')||'<div class="empty-state"><p>No reports.</p></div>';
     $('#userList').innerHTML=(state.users.length?state.users:[{id:uid(),displayName:state.profile?.displayName||state.user?.displayName,email:state.user?.email,role:'admin'}]).map(u=>`<article class="submission-item"><div class="account-avatar">${initials(u.displayName)}</div><div class="submission-main"><h3>${escapeHtml(u.displayName||'User')}</h3><p>${escapeHtml(u.email||'')} · ${escapeHtml(u.role||'user')}</p></div></article>`).join('');
   }
@@ -424,7 +425,7 @@
 
   function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
 
-  function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Owner</span><strong>${escapeHtml(item.ownerName)}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button></div>`; $('#reviewDialog').showModal();}
+  function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Owner</span><strong>${escapeHtml(item.ownerName)}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button><button class="text-link danger-text" data-delete-submission="${id}">Delete submission</button></div>`; $('#reviewDialog').showModal();}
 
   async function submissionAction(id, action) {
     const item = state.submissions.find(submission => submission.id === id);
@@ -461,10 +462,7 @@
           await db.collection('posts').doc(id).set(post);
           await db.collection('submissions').doc(id).update({
             status: 'approved',
-            historyIncluded: Boolean(historyText),
-            publishedPostId: id,
-            publishedUrl: `https://paddockscan.com/#post/${id}`,
-            approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+            historyIncluded: Boolean(historyText)
           });
         }
       } else {
@@ -496,6 +494,76 @@
 
   async function publishEditorial(event){event.preventDefault();const f=event.currentTarget;const data=Object.fromEntries(new FormData(f).entries());const post={title:String(data.title).trim(),vehicle:String(data.title).trim(),ownerName:'PaddockScan',location:'Editorial',year:String(data.year||'Feature'),category:String(data.category||'PaddockScan editorial'),summary:String(data.summary).trim(),story:String(data.story).trim(),website:normaliseWebsiteUrl(data.website),published:true,featured:false,createdAt:nowIso()};try{if(state.mode==='firebase'){const ref=db.collection('posts').doc();if(state.editorialImage){const u=(await uploadFiles([state.editorialImage],`editorial-${ref.id}`,state.user.uid))[0];post.imageUrl=u}else post.imageUrl='assets/car-placeholder.svg';post.createdAt=firebase.firestore.FieldValue.serverTimestamp();await ref.set(post)}else{post.id=`post-${Date.now()}`;post.imageUrl=state.editorialImage?(await filesToDataUrls([state.editorialImage]))[0]:'assets/car-placeholder.svg';state.posts.unshift(post);saveDemo()}f.reset();if(f.elements.website)f.elements.website.value='https://www.';state.editorialImage=null;$('#editorialImagePreview img').src='assets/car-placeholder.svg';$('#editorialStatus').textContent='Post published.';await refreshFirebaseData();renderAll();toast('Editorial post published')}catch(e){$('#editorialStatus').textContent=e.message||'Publish failed'}}
 
+
+  function openPostEditor(id) {
+    const post = state.posts.find(item => item.id === id);
+    if (!post || !state.admin) return;
+
+    const form = $('#editPostForm');
+    form.elements.postId.value = post.id;
+    form.elements.title.value = post.title || post.vehicle || '';
+    form.elements.ownerName.value = post.ownerName || '';
+    form.elements.location.value = post.location || '';
+    form.elements.year.value = post.year || '';
+    form.elements.category.value = post.category || 'Community';
+    form.elements.summary.value = post.summary || '';
+    form.elements.story.value = post.story || '';
+    form.elements.historyText.value = historyTextFrom(post.historyText || '');
+    form.elements.website.value = post.website || 'https://www.';
+    form.elements.imageUrl.value = post.imageUrl || '';
+    $('#editPostDialog').showModal();
+  }
+
+  async function savePostEdit(event) {
+    event.preventDefault();
+    if (!state.admin) {
+      toast('Administrator access required');
+      return;
+    }
+
+    const form = event.currentTarget;
+    const id = form.elements.postId.value;
+    const update = {
+      title: form.elements.title.value.trim(),
+      vehicle: form.elements.title.value.trim(),
+      ownerName: form.elements.ownerName.value.trim(),
+      location: form.elements.location.value.trim(),
+      year: form.elements.year.value.trim(),
+      category: form.elements.category.value.trim() || 'Community',
+      summary: form.elements.summary.value.trim(),
+      story: form.elements.story.value.trim(),
+      historyText: form.elements.historyText.value.trim(),
+      website: normaliseWebsiteUrl(form.elements.website.value),
+      imageUrl: form.elements.imageUrl.value.trim() || 'assets/car-placeholder.svg',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    try {
+      await db.collection('posts').doc(id).update(update);
+      $('#editPostDialog').close();
+      await refreshFirebaseData();
+      renderAll();
+      toast('Public post updated');
+    } catch (error) {
+      console.error(error);
+      toast(error.message || 'Could not update post');
+    }
+  }
+
+  async function deleteSubmission(id) {
+    if (!state.admin || !confirm('Permanently delete this submission?')) return;
+    try {
+      await db.collection('submissions').doc(id).delete();
+      $('#reviewDialog').close();
+      await refreshFirebaseData();
+      renderAll();
+      toast('Submission deleted');
+    } catch (error) {
+      console.error(error);
+      toast(error.message || 'Could not delete submission');
+    }
+  }
+
   async function postAction(id,action){try{if(action==='feature'){if(state.mode==='firebase'){const batch=db.batch();state.posts.forEach(p=>batch.update(db.collection('posts').doc(p.id),{featured:p.id===id}));await batch.commit()}else state.posts.forEach(p=>p.featured=p.id===id)}else if(action==='delete'){if(!confirm('Remove this public post?'))return;if(state.mode==='firebase')await db.collection('posts').doc(id).delete();else state.posts=state.posts.filter(p=>p.id!==id)}if(state.mode==='demo')saveDemo();await refreshFirebaseData();renderAll()}catch(e){toast(e.message||'Action failed')}}
 
   async function submitReport(event){event.preventDefault();const d=Object.fromEntries(new FormData(event.currentTarget).entries());const report={postId:d.postId,reason:d.reason,details:String(d.details||''),reporterUid:uid(),status:'open',createdAt:nowIso()};if(state.mode==='firebase'){report.createdAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection('reports').add(report)}else{report.id=`rep-${Date.now()}`;state.reports.unshift(report);saveDemo()}event.currentTarget.reset();$('#reportDialog').close();toast('Report sent for review');renderAll()}
@@ -518,7 +586,7 @@
     $('#carImages').addEventListener('change',e=>{const incoming=[...e.target.files];state.selectedImages=[...state.selectedImages,...incoming].slice(0,MAX_IMAGES);renderImagePreviews();e.target.value=''});
     $('#submissionForm textarea[name=story]').addEventListener('input',e=>$('#storyCount').textContent=e.target.value.length);$('#submissionForm').addEventListener('submit',e=>{e.preventDefault();saveSubmission('pending')});$('#saveDraftButton').addEventListener('click',()=>saveSubmission('draft'));
     $('#designerForm').addEventListener('submit',saveSettings);$('#previewHomeButton').addEventListener('click',()=>location.hash='#home');$('#editorialForm').addEventListener('submit',publishEditorial);$('#chooseEditorialImage').addEventListener('click',()=>$('#editorialImage').click());$('#editorialImage').addEventListener('change',e=>{state.editorialImage=e.target.files?.[0]||null;if(state.editorialImage)$('#editorialImagePreview img').src=URL.createObjectURL(state.editorialImage)});
-    $('#reportForm').addEventListener('submit',submitReport);$('#profileForm').addEventListener('submit',saveProfile);$('#editProfileButton').addEventListener('click',()=>{const f=$('#profileForm');f.displayName.value=state.profile?.displayName||state.user?.displayName||'';f.location.value=state.profile?.location||'';f.bio.value=state.profile?.bio||'';f.website.value=state.profile?.website||'https://www.';$('#profileDialog').showModal()});
+    $('#reportForm').addEventListener('submit',submitReport);$('#editPostForm').addEventListener('submit',savePostEdit);$('#profileForm').addEventListener('submit',saveProfile);$('#editProfileButton').addEventListener('click',()=>{const f=$('#profileForm');f.displayName.value=state.profile?.displayName||state.user?.displayName||'';f.location.value=state.profile?.location||'';f.bio.value=state.profile?.bio||'';f.website.value=state.profile?.website||'https://www.';$('#profileDialog').showModal()});
     $('#exportDemoButton').addEventListener('click',exportBackup);$('#importDemoInput').addEventListener('change',async e=>{try{await importBackup(e.target.files[0])}catch(err){toast(err.message)}e.target.value=''});$('#resetDemoButton').addEventListener('click',()=>{if(confirm('Reset all local demo content?')){localStorage.removeItem(DEMO_KEY);loadDemo();renderAll();toast('Demo reset')}});$('#copyUidButton').addEventListener('click',async()=>{await navigator.clipboard.writeText(state.user?.uid||'');toast('UID copied')});
     $$('#hubNav button').forEach(b=>b.addEventListener('click',()=>{$$('#hubNav button').forEach(x=>x.classList.toggle('active',x===b));$$('.hub-panel').forEach(p=>p.classList.toggle('active',p.dataset.hubPanel===b.dataset.hub));$('#hubTitle').textContent=b.textContent.replace(/\d+/g,'').trim()}));
     document.addEventListener('click',async e=>{
@@ -528,8 +596,10 @@
       const rem=e.target.closest('[data-remove-image]');if(rem){state.selectedImages.splice(Number(rem.dataset.removeImage),1);renderImagePreviews();return}
       const review=e.target.closest('[data-review-submission]');if(review){openReview(review.dataset.reviewSubmission);return}
       const sub=e.target.closest('[data-sub-action]');if(sub){await submissionAction(sub.dataset.id,sub.dataset.subAction);return}
+      const edit=e.target.closest('[data-edit-post]');if(edit){openPostEditor(edit.dataset.editPost);return}
       const feat=e.target.closest('[data-feature-post]');if(feat){await postAction(feat.dataset.featurePost,'feature');return}
       const del=e.target.closest('[data-delete-post]');if(del){await postAction(del.dataset.deletePost,'delete');return}
+      const deleteSub=e.target.closest('[data-delete-submission]');if(deleteSub){await deleteSubmission(deleteSub.dataset.deleteSubmission);return}
       const report=e.target.closest('[data-report-post]');if(report){$('#reportForm').postId.value=report.dataset.reportPost;$('#reportDialog').showModal();return}
       const resolve=e.target.closest('[data-resolve-report]');if(resolve){const id=resolve.dataset.resolveReport;if(state.mode==='firebase')await db.collection('reports').doc(id).update({status:'resolved'});else{const r=state.reports.find(x=>x.id===id);if(r)r.status='resolved';saveDemo()}renderAll();return}
       const close=e.target.closest('[data-close-dialog]');if(close){document.getElementById(close.dataset.closeDialog).close();return}
