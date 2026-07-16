@@ -37,14 +37,19 @@
 
   <main id="content">
     <section class="view active" data-view="home">
-      <section class="hero">
+      <section class="section home-spotlight" id="featuredSection">
+        <div class="section-heading"><div><p class="eyebrow">CURRENT COMMUNITY WINNER</p><h2 id="competitionTitle">Car of the Month</h2></div><span id="monthChip" class="chip"></span></div>
+        <article id="featuredCard" class="featured-card"></article>
+      </section>
+
+      <section class="hero home-intro">
         <div class="hero-copy">
           <p class="eyebrow" id="heroEyebrow">THE PADDOCKSCAN COMMUNITY</p>
           <h1 id="heroTitle">Every car has a story worth scanning.</h1>
           <p id="heroSubtitle">Share your vehicle, discover standout builds and enter the PaddockScan Car of the Month.</p>
           <div class="hero-actions">
             <a class="button" href="#submit">Submit your car</a>
-            <a class="button button-secondary" href="#community">Explore the paddock</a>
+            <a class="button button-secondary" href="#community">View all community cars</a>
           </div>
           <div class="trust-row"><span>Owner profiles</span><span>Moderated posts</span><span>App-ready sharing</span></div>
         </div>
@@ -54,11 +59,6 @@
           <div class="scan-corner top-left"></div><div class="scan-corner top-right"></div><div class="scan-corner bottom-left"></div><div class="scan-corner bottom-right"></div>
           <span class="scan-status"><i></i> VEHICLE READY</span>
         </div>
-      </section>
-
-      <section class="section" id="featuredSection">
-        <div class="section-heading"><div><p class="eyebrow">PADDOCKSCAN SPOTLIGHT</p><h2 id="competitionTitle">Car of the Month</h2></div><span id="monthChip" class="chip"></span></div>
-        <article id="featuredCard" class="featured-card"></article>
       </section>
 
       <section class="section">
@@ -138,7 +138,16 @@
       <div class="hub-shell">
         <aside class="hub-sidebar">
           <div class="hub-brand"><img src="assets/paddockscan-logo.png" alt=""><span><strong>PaddockScan</strong><small>WEBSITE HUB</small></span></div>
-          <nav id="hubNav"><button data-hub-tab="dashboard" class="active">⌂ Dashboard</button><button data-hub-tab="submissions">▣ Submissions <span id="pendingBadge" class="nav-badge">0</span></button><button data-hub-tab="posts">◆ Posts</button><button data-hub-tab="designer">✦ Homepage designer</button><button data-hub-tab="editorial">✎ Create post</button><button data-hub-tab="reports">⚑ Reports</button><button data-hub-tab="users">● Users</button><button data-hub-tab="settings">⚙ Settings</button></nav>
+          <nav id="hubNav" aria-label="Owner Hub sections">
+            <button data-hub-tab="dashboard" class="active"><span class="hub-nav-icon">⌂</span><span class="hub-nav-label">Dashboard</span></button>
+            <button data-hub-tab="submissions"><span class="hub-nav-icon">▣</span><span class="hub-nav-label">Submissions</span><span id="pendingBadge" class="nav-badge">0</span></button>
+            <button data-hub-tab="posts"><span class="hub-nav-icon">◆</span><span class="hub-nav-label">Posts</span></button>
+            <button data-hub-tab="designer"><span class="hub-nav-icon">✦</span><span class="hub-nav-label">Homepage</span></button>
+            <button data-hub-tab="editorial"><span class="hub-nav-icon">✎</span><span class="hub-nav-label">Create</span></button>
+            <button data-hub-tab="reports"><span class="hub-nav-icon">⚑</span><span class="hub-nav-label">Reports</span></button>
+            <button data-hub-tab="users"><span class="hub-nav-icon">●</span><span class="hub-nav-label">Users</span></button>
+            <button data-hub-tab="settings"><span class="hub-nav-icon">⚙</span><span class="hub-nav-label">Settings</span></button>
+          </nav>
           <a class="hub-public-link" href="#home">← Public website</a>
         </aside>
         <div class="hub-main">
