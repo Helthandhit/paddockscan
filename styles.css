@@ -272,8 +272,6 @@
 
 
 /* Garage vehicle dropdown and registration privacy */
-.plate-mask{position:relative;overflow:hidden}
-.plate-mask::after{content:"PLATE HIDDEN";position:absolute;left:23%;right:23%;top:63%;height:10%;min-height:22px;display:grid;place-items:center;background:#08090a;color:#e7c459;border:1px solid rgba(214,174,54,.8);border-radius:5px;font-size:clamp(.48rem,1.2vw,.7rem);font-weight:900;letter-spacing:.12em;line-height:1;pointer-events:none;box-shadow:0 3px 12px rgba(0,0,0,.55)}
 .vehicle-thumb{width:100px;height:74px;border-radius:11px;background:#080a0b;flex:0 0 auto}
 .vehicle-thumb img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .vehicle-image-frame{position:relative;border-radius:15px;overflow:hidden}
@@ -307,5 +305,4 @@
   .garage-vehicle-card .vehicle-thumb{width:76px;height:66px}
   .vehicle-detail-grid{grid-template-columns:1fr}
   .garage-dropdown{padding:14px}
-  .plate-mask::after{left:20%;right:20%;font-size:.48rem}
 }
