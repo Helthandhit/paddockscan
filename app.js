@@ -222,10 +222,87 @@
     $('#communityPostGrid').innerHTML = items.map(postCard).join(''); $('#communityEmpty').hidden = !!items.length;
   }
 
+  function historyTextFrom(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.trim();
+
+    const direct = [
+      value.historyText,
+      value.fullText,
+      value.text,
+      value.content,
+      value.generatedText
+    ].find(item => typeof item === 'string' && item.trim());
+
+    if (direct) return direct.trim();
+
+    if (value.sections && typeof value.sections === 'object') {
+      return Object.entries(value.sections)
+        .map(([heading, body]) => {
+          const cleanBody = typeof body === 'string'
+            ? body.trim()
+            : historyTextFrom(body);
+          if (!cleanBody) return '';
+          const cleanHeading = String(heading)
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/[_-]+/g, ' ')
+            .toUpperCase();
+          return `${cleanHeading}\n${cleanBody}`;
+        })
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
+    return '';
+  }
+
+  async function loadVehicleHistoryForSubmission(item) {
+    const embedded = historyTextFrom(
+      item.historyText ||
+      item.vehicleHistory ||
+      item.history
+    );
+
+    if (embedded) return embedded;
+    if (!db || !item.ownerUid) return '';
+
+    const scanId = item.garageScanId || item.scanId || item.vehicleId;
+    if (!scanId) return '';
+
+    try {
+      const snap = await db
+        .collection('users')
+        .doc(item.ownerUid)
+        .collection('garage')
+        .doc(scanId)
+        .collection('history')
+        .doc('current')
+        .get();
+
+      return snap.exists ? historyTextFrom(snap.data()) : '';
+    } catch (error) {
+      console.warn('Vehicle history could not be loaded', error);
+      return '';
+    }
+  }
+
   function renderPostDetail(id) {
     const post = state.posts.find(p=>p.id===id); if (!post) { location.hash='#community'; return; }
     const link = safeUrl(post.website);
-    $('#postDetail').innerHTML = `<img class="post-detail-image" src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}"><div class="post-detail-copy"><p class="eyebrow">${escapeHtml(post.category || 'COMMUNITY')}</p><h1>${escapeHtml(post.title || post.vehicle)}</h1><div class="detail-byline">By ${escapeHtml(post.ownerName || 'PaddockScan')} · ${dateText(post.createdAt)}${post.location?` · ${escapeHtml(post.location)}`:''}</div><p class="lead">${escapeHtml(post.summary || '')}</p><div class="article-body">${escapeHtml(post.story || '').replace(/\n/g,'<br>')}</div><div class="detail-actions">${link?`<a class="button button-secondary" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener">Owner link ↗</a>`:''}<button class="text-link" data-report-post="${escapeHtml(post.id)}">Report this post</button></div></div>`;
+    const story = String(post.story || '').trim();
+    const summary = String(post.summary || '').trim();
+    const history = historyTextFrom(post.historyText || post.vehicleHistory || post.history);
+    const showSummary = summary && summary !== story;
+
+    const storySection = story
+      ? `<section class="feature-section"><p class="eyebrow">OWNER'S STORY</p><div class="article-body">${escapeHtml(story).replace(/\n/g,'<br>')}</div></section>`
+      : '';
+
+    const historySection = history
+      ? `<section class="feature-section vehicle-history-section"><p class="eyebrow">PADDOCKSCAN VEHICLE HISTORY</p><div class="article-body">${escapeHtml(history).replace(/\n/g,'<br>')}</div><p class="history-disclaimer">AI-generated editorial history. Official vehicle data should be checked independently.</p></section>`
+      : '';
+
+    $('#postDetail').innerHTML = `<img class="post-detail-image" src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}"><div class="post-detail-copy"><p class="eyebrow">${escapeHtml(post.category || 'COMMUNITY')}</p><h1>${escapeHtml(post.title || post.vehicle)}</h1><div class="detail-byline">By ${escapeHtml(post.ownerName || 'PaddockScan')} · ${dateText(post.createdAt)}${post.location?` · ${escapeHtml(post.location)}`:''}</div>${showSummary?`<p class="lead">${escapeHtml(summary)}</p>`:''}${storySection}${historySection}<div class="detail-actions">${link?`<a class="button button-secondary" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener">Owner link ↗</a>`:''}<button class="text-link" data-report-post="${escapeHtml(post.id)}">Report this post</button></div></div>`;
   }
 
   function submissionItem(item, admin=false) {
@@ -234,120 +311,12 @@
     return `<article class="submission-item"><img src="${escapeHtml(img)}" alt=""><div class="submission-main"><span class="status-pill status-${escapeHtml(item.status||'draft')}">${escapeHtml((item.status||'draft').replaceAll('_',' '))}</span><h3>${escapeHtml(item.vehicle || 'Untitled vehicle')}</h3><p>${escapeHtml(item.ownerName || '')} · ${dateText(item.createdAt)}</p></div>${actions}</article>`;
   }
 
-  function firstValue(...values) {
-    return values.find(value => value !== undefined && value !== null && String(value).trim() !== '');
-  }
-
-  function garageValue(result, ...paths) {
-    for (const path of paths) {
-      const value = path.split('.').reduce((current, key) => current?.[key], result);
-      if (value !== undefined && value !== null && String(value).trim() !== '') return value;
-    }
-    return null;
-  }
-
-  function formatGarageValue(value, suffix='') {
-    if (value === undefined || value === null || value === '') return '—';
-    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    if (Array.isArray(value)) return value.filter(Boolean).join(', ') || '—';
-    return `${value}${suffix}`;
-  }
-
-  function garageDetailRow(label, value, suffix='') {
-    if (value === undefined || value === null || String(value).trim() === '') return '';
-    return `<div class="garage-detail-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatGarageValue(value, suffix))}</strong></div>`;
-  }
-
-  function garageDetailSection(title, rows) {
-    const content = rows.filter(Boolean).join('');
-    return content ? `<section class="garage-detail-section"><h3>${escapeHtml(title)}</h3><div class="garage-detail-grid">${content}</div></section>` : '';
-  }
-
   function cloudGarageItem(item) {
     const result = item.result || {};
-    const vehicle = item.title || result.title || [garageValue(result,'verifiedIdentity.modelYear','year'), garageValue(result,'verifiedIdentity.make','make'), garageValue(result,'verifiedIdentity.model','model')].filter(Boolean).join(' ') || 'Saved vehicle';
-    const registration = item.registration || garageValue(result,'registration.normalizedRegistration','registration.registration','registration');
-    const detailBits = [
-      registration,
-      garageValue(result,'verifiedIdentity.modelYear','year'),
-      garageValue(result,'vehicle.fuelType','fuelType','fuel'),
-      garageValue(result,'vehicle.bodyStyle','bodyStyle')
-    ].filter(Boolean);
-    return `<article class="submission-item garage-list-item" data-open-garage="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(vehicle)} details"><img src="${escapeHtml(item.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(vehicle)}"><div class="submission-main"><span class="status-pill status-approved">private app scan</span><h3>${escapeHtml(vehicle)}</h3><p>${escapeHtml(detailBits.join(' · ') || 'Synced from PaddockScan')}</p><small>${dateText(item.updatedAt || item.createdAtIso)}</small></div><div class="submission-actions"><button class="button button-small button-secondary" type="button" data-open-garage="${escapeHtml(item.id)}">Open details</button></div></article>`;
-  }
-
-  async function openGarageDetail(id) {
-    const item = state.cloudGarage.find(vehicle => vehicle.id === id);
-    if (!item) return;
-    const result = item.result || {};
-    const identity = result.verifiedIdentity || {};
-    const vehicleData = result.vehicle || {};
-    const specs = result.specifications || result.estimatedSpecifications || {};
-    const valuation = result.valuation || result.estimatedValuation || {};
-    const confidence = result.confidence || {};
-    const registration = item.registration || garageValue(result,'registration.normalizedRegistration','registration.registration','registration');
-    const title = item.title || result.title || [identity.modelYear, identity.make, identity.model].filter(Boolean).join(' ') || 'Saved vehicle';
-
-    let historyText = firstValue(result.historyText, result.vehicleHistory, item.historyText);
-    if (state.mode === 'firebase' && state.user) {
-      try {
-        const historySnap = await db.collection('users').doc(state.user.uid).collection('garage').doc(item.id).collection('history').doc('current').get();
-        if (historySnap.exists) historyText = firstValue(historySnap.data().historyText, historyText);
-      } catch (error) { console.warn('Garage history read failed', error); }
-    }
-
-    const make = firstValue(identity.make, garageValue(result,'make','vehicle.make'));
-    const model = firstValue(identity.model, garageValue(result,'model','vehicle.model'));
-    const year = firstValue(identity.modelYear, garageValue(result,'year','estimated_year_from'));
-    const generation = firstValue(identity.generation, garageValue(result,'generation','vehicle.generation'));
-    const trim = firstValue(identity.trim, garageValue(result,'trim','vehicle.trim'));
-    const colour = firstValue(identity.colour, garageValue(result,'colour','vehicle.colour'));
-    const bodyStyle = firstValue(vehicleData.bodyStyle, garageValue(result,'bodyStyle'));
-    const fuel = firstValue(vehicleData.fuelType, garageValue(result,'fuelType','fuel','estimated_fuel_type'));
-    const transmission = firstValue(vehicleData.transmission, garageValue(result,'transmission','estimated_transmission'));
-    const engineCc = firstValue(vehicleData.engineCapacityCc, specs.engineCapacityCc, garageValue(result,'engineCapacityCc','estimated_engine_capacity_cc'));
-    const engineName = firstValue(vehicleData.engineName, specs.engineName, garageValue(result,'engineName','estimated_engine_name'));
-    const power = firstValue(vehicleData.horsepowerBhp, specs.horsepowerBhp, garageValue(result,'horsepowerBhp','estimated_horsepower_bhp'));
-    const torque = firstValue(vehicleData.torqueNm, specs.torqueNm, garageValue(result,'torqueNm','estimated_torque_nm'));
-    const mpg = firstValue(vehicleData.combinedMpgUk, specs.combinedMpgUk, garageValue(result,'combinedMpgUk','estimated_combined_mpg_uk'));
-    const co2 = firstValue(vehicleData.co2GramsPerKm, specs.co2GramsPerKm, garageValue(result,'co2GramsPerKm','estimated_co2_grams_per_km'));
-    const originalPrice = firstValue(valuation.originalMsrp, garageValue(result,'originalMsrp','estimatedOriginalMsrp','estimated_original_msrp'));
-    const currentValue = firstValue(valuation.currentValue, garageValue(result,'currentValue','estimatedValue','estimated_current_value'));
-    const lowValue = firstValue(valuation.marketLow, garageValue(result,'marketLow','estimated_market_low'));
-    const highValue = firstValue(valuation.marketHigh, garageValue(result,'marketHigh','estimated_market_high'));
-    const overallConfidence = firstValue(confidence.overallPercent, confidence.overall, garageValue(result,'confidencePercent','confidence'));
-    const reasoning = firstValue(result.reasoningSummary, result.reasoning_summary, result.specificationEstimateNotes, result.specification_estimate_notes);
-
-    $('#garageDetailContent').innerHTML = `
-      <div class="garage-detail-hero">
-        <img src="${escapeHtml(item.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(title)}">
-        <div><p class="eyebrow">MY PADDOCKSCAN GARAGE</p><h2>${escapeHtml(title)}</h2><p>${escapeHtml([registration, year, fuel, bodyStyle].filter(Boolean).join(' · '))}</p></div>
-      </div>
-      ${garageDetailSection('Vehicle identity', [
-        garageDetailRow('Registration', registration), garageDetailRow('Make', make), garageDetailRow('Model', model),
-        garageDetailRow('Year', year), garageDetailRow('Generation', generation), garageDetailRow('Trim / variant', trim),
-        garageDetailRow('Colour', colour), garageDetailRow('Body style', bodyStyle)
-      ])}
-      ${garageDetailSection('Engine and performance', [
-        garageDetailRow('Engine', engineName), garageDetailRow('Engine capacity', engineCc, ' cc'), garageDetailRow('Fuel', fuel),
-        garageDetailRow('Transmission', transmission), garageDetailRow('Power', power, ' bhp'), garageDetailRow('Torque', torque, ' Nm'),
-        garageDetailRow('Combined economy', mpg, ' mpg'), garageDetailRow('CO₂', co2, ' g/km')
-      ])}
-      ${garageDetailSection('Estimated value', [
-        garageDetailRow('Price when new', originalPrice ? `£${Number(originalPrice).toLocaleString('en-GB')}` : null),
-        garageDetailRow('Current estimate', currentValue ? `£${Number(currentValue).toLocaleString('en-GB')}` : null),
-        garageDetailRow('Market low', lowValue ? `£${Number(lowValue).toLocaleString('en-GB')}` : null),
-        garageDetailRow('Market high', highValue ? `£${Number(highValue).toLocaleString('en-GB')}` : null)
-      ])}
-      ${garageDetailSection('Scan information', [
-        garageDetailRow('Confidence', overallConfidence, Number(overallConfidence) <= 1 ? '' : '%'),
-        garageDetailRow('Saved', dateText(item.updatedAt || item.createdAtIso)),
-        garageDetailRow('Scan ID', item.scanId || item.id)
-      ])}
-      ${reasoning ? `<section class="garage-detail-section"><h3>Identification notes</h3><p class="garage-detail-copy">${escapeHtml(reasoning)}</p></section>` : ''}
-      ${historyText ? `<section class="garage-detail-section"><h3>Vehicle history</h3><div class="garage-history-text">${escapeHtml(historyText).replace(/\n/g,'<br>')}</div></section>` : '<section class="garage-detail-section"><h3>Vehicle history</h3><p class="garage-detail-copy">No saved editorial history is available for this vehicle yet. Generate it in the Android app, then refresh the Garage.</p></section>'}
-    `;
-    $('#garageDetailDialog').showModal();
+    const vehicle = item.title || result.title || [result.year, result.make, result.model].filter(Boolean).join(' ') || 'Saved vehicle';
+    const registration = item.registration || result.registration?.normalizedRegistration || '';
+    const detailBits = [registration, result.fuelType || result.fuel, result.bodyStyle, result.year].filter(Boolean);
+    return `<article class="submission-item"><img src="${escapeHtml(item.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(vehicle)}"><div class="submission-main"><span class="status-pill status-approved">private app scan</span><h3>${escapeHtml(vehicle)}</h3><p>${escapeHtml(detailBits.join(' · ') || 'Synced from PaddockScan')}</p><small>${dateText(item.updatedAt || item.createdAtIso)}</small></div></article>`;
   }
 
   function renderGarage() {
@@ -457,7 +426,68 @@
 
   function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Owner</span><strong>${escapeHtml(item.ownerName)}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button></div>`; $('#reviewDialog').showModal();}
 
-  async function submissionAction(id,action){const item=state.submissions.find(s=>s.id===id);if(!item)return; try{if(state.mode==='firebase'){await db.collection('submissions').doc(id).update({status:action,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); if(action==='approve'){const post={title:item.vehicle,vehicle:item.vehicle,ownerName:item.ownerName,ownerUid:item.ownerUid,location:item.location||'',year:item.year||'',category:item.category||'Community',summary:item.summary||String(item.story||'').slice(0,280),story:item.story||'',website:item.website||'',imageUrl:item.imageUrls?.[0]||item.imageUrl||'assets/car-placeholder.svg',published:true,featured:false,createdAt:firebase.firestore.FieldValue.serverTimestamp()};await db.collection('posts').doc(id).set(post);await db.collection('submissions').doc(id).update({status:'approved'});}}else{item.status=action;if(action==='approve'){state.posts.unshift({id:item.id,title:item.vehicle,...item,imageUrl:item.imageUrls?.[0]||'assets/car-placeholder.svg',published:true,featured:false});}saveDemo();}$('#reviewDialog').close();await refreshFirebaseData();renderAll();toast(action==='approve'?'Submission published':'Submission updated');}catch(e){toast(e.message||'Update failed');}}
+  async function submissionAction(id, action) {
+    const item = state.submissions.find(submission => submission.id === id);
+    if (!item) return;
+
+    try {
+      if (state.mode === 'firebase') {
+        await db.collection('submissions').doc(id).update({
+          status: action,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        if (action === 'approve') {
+          const historyText = await loadVehicleHistoryForSubmission(item);
+          const post = {
+            title: item.vehicle,
+            vehicle: item.vehicle,
+            ownerName: item.ownerName,
+            ownerUid: item.ownerUid,
+            garageScanId: item.garageScanId || item.scanId || item.vehicleId || '',
+            location: item.location || '',
+            year: item.year || '',
+            category: item.category || 'Community',
+            summary: item.summary || String(item.story || '').slice(0, 280),
+            story: item.story || '',
+            historyText,
+            website: item.website || '',
+            imageUrl: item.imageUrls?.[0] || item.imageUrl || 'assets/car-placeholder.svg',
+            published: true,
+            featured: false,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+
+          await db.collection('posts').doc(id).set(post);
+          await db.collection('submissions').doc(id).update({
+            status: 'approved',
+            historyIncluded: Boolean(historyText)
+          });
+        }
+      } else {
+        item.status = action;
+        if (action === 'approve') {
+          state.posts.unshift({
+            id: item.id,
+            title: item.vehicle,
+            ...item,
+            historyText: historyTextFrom(item.historyText || item.vehicleHistory || item.history),
+            imageUrl: item.imageUrls?.[0] || 'assets/car-placeholder.svg',
+            published: true,
+            featured: false
+          });
+        }
+        saveDemo();
+      }
+
+      $('#reviewDialog').close();
+      await refreshFirebaseData();
+      renderAll();
+      toast(action === 'approve' ? 'Submission published' : 'Submission updated');
+    } catch (error) {
+      toast(error.message || 'Update failed');
+    }
+  }
 
   async function saveSettings(event){event.preventDefault();const f=event.currentTarget;const next={heroEyebrow:f.heroEyebrow.value.trim(),heroTitle:f.heroTitle.value.trim(),heroSubtitle:f.heroSubtitle.value.trim(),competitionTitle:f.competitionTitle.value.trim(),announcement:f.announcement.value.trim(),accent:f.accent.value,playStoreUrl:safeUrl(f.playStoreUrl.value),submissionsOpen:f.submissionsOpen.value==='true'};try{if(state.mode==='firebase')await db.collection('siteSettings').doc('public').set({...next,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});else{state.settings={...state.settings,...next};saveDemo();}state.settings={...state.settings,...next};applySettings();$('#designerStatus').textContent='Homepage published.';toast('Homepage updated');}catch(e){$('#designerStatus').textContent=e.message||'Could not publish.';}}
 
@@ -490,7 +520,6 @@
     $$('#hubNav button').forEach(b=>b.addEventListener('click',()=>{$$('#hubNav button').forEach(x=>x.classList.toggle('active',x===b));$$('.hub-panel').forEach(p=>p.classList.toggle('active',p.dataset.hubPanel===b.dataset.hub));$('#hubTitle').textContent=b.textContent.replace(/\d+/g,'').trim()}));
     document.addEventListener('click',async e=>{
       const authBtn=e.target.closest('[data-auth]');if(authBtn){e.preventDefault();$('#accountDialog')?.close();state.user?await signOut():await signIn();return}
-      const garageOpen=e.target.closest('[data-open-garage]');if(garageOpen){await openGarageDetail(garageOpen.dataset.openGarage);return}
       const open=e.target.closest('[data-open-post]');if(open){location.hash=`#post/${open.dataset.openPost}`;return}
       const back=e.target.closest('[data-back]');if(back){location.hash=`#${state.lastPublicRoute||'community'}`;return}
       const rem=e.target.closest('[data-remove-image]');if(rem){state.selectedImages.splice(Number(rem.dataset.removeImage),1);renderImagePreviews();return}
