@@ -269,3 +269,43 @@
 .photographer-byline { margin-top: .45rem; }
 .photographer-credit-link { color: var(--accent); font-weight: 800; text-decoration: none; }
 .photographer-credit-link:hover, .photographer-credit-link:focus-visible { text-decoration: underline; }
+
+
+/* Garage vehicle dropdown and registration privacy */
+.plate-mask{position:relative;overflow:hidden}
+.plate-mask::after{content:"PLATE HIDDEN";position:absolute;left:23%;right:23%;top:63%;height:10%;min-height:22px;display:grid;place-items:center;background:#08090a;color:#e7c459;border:1px solid rgba(214,174,54,.8);border-radius:5px;font-size:clamp(.48rem,1.2vw,.7rem);font-weight:900;letter-spacing:.12em;line-height:1;pointer-events:none;box-shadow:0 3px 12px rgba(0,0,0,.55)}
+.vehicle-thumb{width:100px;height:74px;border-radius:11px;background:#080a0b;flex:0 0 auto}
+.vehicle-thumb img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.vehicle-image-frame{position:relative;border-radius:15px;overflow:hidden}
+.post-detail-image-wrap{border-radius:22px;overflow:hidden;align-self:start}
+.post-detail-image-wrap .post-detail-image{width:100%;height:100%;object-fit:cover}
+.review-image{border-radius:12px;overflow:hidden;height:170px}
+.review-image img{width:100%;height:100%;object-fit:cover}
+.garage-vehicle-card{border:1px solid var(--line);background:#0e1113;border-radius:18px;overflow:hidden}
+.garage-vehicle-card summary{display:grid;grid-template-columns:100px minmax(0,1fr) 32px;align-items:center;gap:15px;padding:13px;cursor:pointer;list-style:none}
+.garage-vehicle-card summary::-webkit-details-marker{display:none}
+.garage-vehicle-heading h3,.garage-vehicle-heading p{margin:0}
+.garage-vehicle-heading p{color:var(--muted);font-size:.84rem;margin-top:6px}
+.garage-vehicle-heading small{display:block;color:#768089;margin-top:5px}
+.garage-chevron{display:grid;place-items:center;width:32px;height:32px;border:1px solid #353c42;border-radius:10px;color:var(--accent2);font-size:1.25rem;transition:transform .2s ease}
+.garage-vehicle-card[open] .garage-chevron{transform:rotate(180deg)}
+.garage-dropdown{border-top:1px solid var(--line);padding:18px;display:grid;gap:18px;background:#0a0d0f}
+.garage-dropdown h4{margin:0 0 11px;color:var(--accent2);font-size:.72rem;letter-spacing:1.5px}
+.vehicle-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.vehicle-detail-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #293036;border-radius:10px;background:#101418}
+.vehicle-detail-row span{color:var(--muted);font-size:.76rem}
+.vehicle-detail-row strong{text-align:right;font-size:.8rem;text-transform:capitalize}
+.vehicle-feature-list ul{margin:0;padding-left:20px;color:#bec6cc;line-height:1.65}
+.garage-history{padding:16px;border:1px solid #353015;border-radius:14px;background:linear-gradient(145deg,rgba(214,174,54,.08),rgba(255,255,255,.015));color:#c4cbd0;line-height:1.7}
+.garage-history h4{color:#f0cf67}
+.garage-history .history-disclaimer{font-size:.72rem;color:#89939a;margin:14px 0 0}
+.empty-history{border-style:dashed}
+.garage-actions{display:flex;justify-content:flex-end}
+
+@media(max-width:760px){
+  .garage-vehicle-card summary{grid-template-columns:76px minmax(0,1fr) 30px;gap:10px;padding:10px}
+  .garage-vehicle-card .vehicle-thumb{width:76px;height:66px}
+  .vehicle-detail-grid{grid-template-columns:1fr}
+  .garage-dropdown{padding:14px}
+  .plate-mask::after{left:20%;right:20%;font-size:.48rem}
+}

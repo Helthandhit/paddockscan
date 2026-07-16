@@ -107,6 +107,97 @@
       : `<span class="photographer-credit-link">${credit}</span>`;
   };
 
+  const maskRegistration = value => {
+    const clean = String(value || '').replace(/\s+/g, '').toUpperCase();
+    if (!clean) return '';
+    if (clean.length <= 3) return '•••';
+    return `${clean.slice(0, 2)}${'•'.repeat(Math.max(3, clean.length - 3))}${clean.slice(-1)}`;
+  };
+
+  const firstValue = (...values) => values.find(value => value !== undefined && value !== null && String(value).trim() !== '');
+
+  function vehicleDisplayData(item) {
+    const result = item.result || {};
+    const identity = result.verifiedIdentity || result.aiIdentification || result.visualIdentification || {};
+    const visual = result.aiIdentification || {};
+    const specs = result.specifications || {};
+    const powertrain = specs.powertrain || {};
+    const performance = specs.performance || {};
+    const reg = firstValue(item.registration, result.registration?.normalizedRegistration, result.registration?.registration, visual.visibleRegistration);
+    return {
+      title: firstValue(item.title, result.title, [identity.modelYear || visual.estimatedYearFrom, identity.make || visual.make, identity.model || visual.model].filter(Boolean).join(' '), 'Saved vehicle'),
+      registration: maskRegistration(reg),
+      make: firstValue(identity.make, visual.make),
+      model: firstValue(identity.model, visual.model),
+      generation: firstValue(identity.generation, visual.generation),
+      variant: firstValue(identity.variant, visual.variant),
+      year: firstValue(identity.modelYear, result.year, visual.estimatedYearFrom),
+      yearRange: visual.estimatedYearFrom && visual.estimatedYearTo ? `${visual.estimatedYearFrom}–${visual.estimatedYearTo}` : '',
+      bodyStyle: firstValue(identity.bodyStyle, visual.bodyStyle, result.bodyStyle),
+      colour: firstValue(identity.colour, visual.colour, result.colour),
+      fuel: firstValue(result.fuelType, result.fuel, powertrain.fuelType),
+      drivetrain: firstValue(powertrain.drivetrain, visual.estimatedDrivetrain),
+      transmission: firstValue(powertrain.transmission, result.transmission),
+      power: firstValue(performance.powerBhp, performance.horsepowerBhp, result.horsepowerBhp),
+      confidence: firstValue(identity.confidence, visual.confidence, result.confidence?.overall),
+      verification: firstValue(result.verificationStatus, 'PADDOCKSCAN_IDENTIFICATION'),
+      features: Array.isArray(visual.distinguishingFeatures) ? visual.distinguishingFeatures : [],
+      history: historyTextFrom(item.historyText || item.history || item.vehicleHistory)
+    };
+  }
+
+  function detailRow(label, value) {
+    if (value === undefined || value === null || String(value).trim() === '') return '';
+    return `<div class="vehicle-detail-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+  }
+
+  async function privacyMaskedFile(file) {
+    if (!file || !String(file.type || '').startsWith('image/')) return file;
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    // Conservative lower-centre privacy cover where front/rear registration plates normally appear.
+    const width = canvas.width * 0.54;
+    const height = Math.max(34, canvas.height * 0.105);
+    const x = (canvas.width - width) / 2;
+    const y = canvas.height * 0.63;
+    const radius = Math.max(8, height * 0.18);
+    ctx.fillStyle = '#0a0b0c';
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fill();
+    ctx.strokeStyle = '#d6ae36';
+    ctx.lineWidth = Math.max(2, canvas.width * 0.003);
+    ctx.stroke();
+    ctx.fillStyle = '#f3d16a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${Math.max(12, height * 0.27)}px system-ui, sans-serif`;
+    ctx.fillText('PLATE HIDDEN', canvas.width / 2, y + height / 2);
+
+    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.92));
+    if (!blob) return file;
+    const extension = type === 'image/png' ? 'png' : 'jpg';
+    const base = String(file.name || 'vehicle').replace(/\.[^.]+$/, '');
+    return new File([blob], `${base}-plate-hidden.${extension}`, { type, lastModified: Date.now() });
+  }
+
   const slug = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
   const uid = () => state.user?.uid || 'demo-user';
 
@@ -181,6 +272,15 @@
         state.cloudGarage = await Promise.all(garageSnap.docs.map(async d => {
           const data = { id:d.id, ...d.data() };
           try { data.result = data.resultJson ? JSON.parse(data.resultJson) : {}; } catch { data.result = {}; }
+          try {
+            const historySnap = await d.ref.collection('history').doc('current').get();
+            data.history = historySnap.exists ? historySnap.data() : null;
+            data.historyText = historyTextFrom(data.history);
+          } catch (historyError) {
+            console.warn('Saved vehicle history could not be loaded', historyError);
+            data.history = null;
+            data.historyText = '';
+          }
           const imagePath = data.cutoutStoragePath || data.originalStoragePath;
           if (imagePath) {
             try { data.imageUrl = await storage.ref(imagePath).getDownloadURL(); }
@@ -227,15 +327,15 @@
 
   function featuredPost() { return state.posts.find(p=>p.featured) || state.posts[0] || defaults.posts[0]; }
   function postCard(post) {
-    return `<article class="post-card" data-open-post="${escapeHtml(post.id)}"><div class="post-image"><img src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}" loading="lazy"><span>${escapeHtml(post.category || 'Community')}</span></div><div class="post-copy"><p class="eyebrow">${escapeHtml(post.year || 'FEATURE')}</p><h3>${escapeHtml(post.title || post.vehicle)}</h3><p>${escapeHtml(post.summary || String(post.story||'').slice(0,150))}</p><div class="post-meta"><span>${ownerCreditHtml(post)}</span><span>${dateText(post.createdAt)}</span></div></div></article>`;
+    return `<article class="post-card" data-open-post="${escapeHtml(post.id)}"><div class="post-image plate-mask"><img src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}" loading="lazy"><span>${escapeHtml(post.category || 'Community')}</span></div><div class="post-copy"><p class="eyebrow">${escapeHtml(post.year || 'FEATURE')}</p><h3>${escapeHtml(post.title || post.vehicle)}</h3><p>${escapeHtml(post.summary || String(post.story||'').slice(0,150))}</p><div class="post-meta"><span>${ownerCreditHtml(post)}</span><span>${dateText(post.createdAt)}</span></div></div></article>`;
   }
 
   function renderPosts() {
     const feature = featuredPost();
-    $('#featuredCard').innerHTML = `<div class="featured-image"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(feature.title || feature.vehicle)}"><span class="feature-badge">CURRENT WINNER</span></div><div class="featured-copy"><p class="eyebrow">${escapeHtml(feature.category || 'FEATURED')}</p><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${escapeHtml(feature.summary || feature.story || '')}</p><div class="feature-stats"><div><span>Owner credit</span><strong>${ownerCreditHtml(feature)}</strong></div><div><span>Location</span><strong>${escapeHtml(feature.location || 'United Kingdom')}</strong></div><div><span>Year</span><strong>${escapeHtml(feature.year || '—')}</strong></div></div><button class="button" data-open-post="${escapeHtml(feature.id)}">Read the story</button></div>`;
+    $('#featuredCard').innerHTML = `<div class="featured-image plate-mask"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(feature.title || feature.vehicle)}"><span class="feature-badge">CURRENT WINNER</span></div><div class="featured-copy"><p class="eyebrow">${escapeHtml(feature.category || 'FEATURED')}</p><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${escapeHtml(feature.summary || feature.story || '')}</p><div class="feature-stats"><div><span>Owner credit</span><strong>${ownerCreditHtml(feature)}</strong></div><div><span>Location</span><strong>${escapeHtml(feature.location || 'United Kingdom')}</strong></div><div><span>Year</span><strong>${escapeHtml(feature.year || '—')}</strong></div></div><button class="button" data-open-post="${escapeHtml(feature.id)}">Read the story</button></div>`;
     $('#homePostGrid').innerHTML = state.posts.filter(p=>p.id!==feature.id).slice(0,3).map(postCard).join('') || postCard(feature);
     filterCommunity();
-    $('#hubFeatured').innerHTML = `<img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt=""><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${ownerCreditHtml(feature)}</p>`;
+    $('#hubFeatured').innerHTML = `<div class="vehicle-image-frame plate-mask"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt=""></div><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${ownerCreditHtml(feature)}</p>`;
   }
 
   function filterCommunity() {
@@ -321,24 +421,47 @@
       : '';
 
     const historySection = history
-      ? `<section class="feature-section vehicle-history-section"><p class="eyebrow">PADDOCKSCAN VEHICLE HISTORY</p><div class="article-body">${escapeHtml(history).replace(/\n/g,'<br>')}</div><p class="history-disclaimer">AI-generated editorial history. Official vehicle data should be checked independently.</p></section>`
+      ? `<section class="feature-section vehicle-history-section"><p class="eyebrow">PADDOCKSCAN VEHICLE HISTORY</p><div class="article-body">${escapeHtml(history).replace(/\n/g,'<br>')}</div><p class="history-disclaimer">This PaddockScan vehicle overview is prepared from available vehicle and visual information. Details should be independently verified.</p></section>`
       : '';
 
-    $('#postDetail').innerHTML = `<img class="post-detail-image" src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}"><div class="post-detail-copy"><p class="eyebrow">${escapeHtml(post.category || 'COMMUNITY')}</p><h1>${escapeHtml(post.title || post.vehicle)}</h1><div class="detail-byline">Owner credit: ${ownerCreditHtml(post)} · ${dateText(post.createdAt)}${post.location?` · ${escapeHtml(post.location)}`:''}</div>${photographerCreditText(post)?`<div class="detail-byline photographer-byline">Photography: ${photographerCreditHtml(post)}</div>`:''}${showSummary?`<p class="lead">${escapeHtml(summary)}</p>`:''}${storySection}${historySection}<div class="detail-actions">${link?`<a class="button button-secondary" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener">Owner link ↗</a>`:''}<button class="text-link" data-report-post="${escapeHtml(post.id)}">Report this post</button></div></div>`;
+    $('#postDetail').innerHTML = `<div class="post-detail-image-wrap plate-mask"><img class="post-detail-image" src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}"></div><div class="post-detail-copy"><p class="eyebrow">${escapeHtml(post.category || 'COMMUNITY')}</p><h1>${escapeHtml(post.title || post.vehicle)}</h1><div class="detail-byline">Owner credit: ${ownerCreditHtml(post)} · ${dateText(post.createdAt)}${post.location?` · ${escapeHtml(post.location)}`:''}</div>${photographerCreditText(post)?`<div class="detail-byline photographer-byline">Photography: ${photographerCreditHtml(post)}</div>`:''}${showSummary?`<p class="lead">${escapeHtml(summary)}</p>`:''}${storySection}${historySection}<div class="detail-actions">${link?`<a class="button button-secondary" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener">Owner link ↗</a>`:''}<button class="text-link" data-report-post="${escapeHtml(post.id)}">Report this post</button></div></div>`;
   }
 
   function submissionItem(item, admin=false) {
     const img = item.imageUrls?.[0] || item.imageUrl || 'assets/car-placeholder.svg';
     const actions = admin ? `<div class="submission-actions"><button class="button button-small button-secondary" data-review-submission="${item.id}">Review</button></div>` : '';
-    return `<article class="submission-item"><img src="${escapeHtml(img)}" alt=""><div class="submission-main"><span class="status-pill status-${escapeHtml(item.status||'draft')}">${escapeHtml((item.status||'draft').replaceAll('_',' '))}</span><h3>${escapeHtml(item.vehicle || 'Untitled vehicle')}</h3><p>${escapeHtml(item.ownerCredit || item.ownerName || '')} · ${dateText(item.createdAt)}</p></div>${actions}</article>`;
+    return `<article class="submission-item"><div class="vehicle-thumb plate-mask"><img src="${escapeHtml(img)}" alt=""></div><div class="submission-main"><span class="status-pill status-${escapeHtml(item.status||'draft')}">${escapeHtml((item.status||'draft').replaceAll('_',' '))}</span><h3>${escapeHtml(item.vehicle || 'Untitled vehicle')}</h3><p>${escapeHtml(item.ownerCredit || item.ownerName || '')} · ${dateText(item.createdAt)}</p></div>${actions}</article>`;
   }
 
   function cloudGarageItem(item) {
-    const result = item.result || {};
-    const vehicle = item.title || result.title || [result.year, result.make, result.model].filter(Boolean).join(' ') || 'Saved vehicle';
-    const registration = item.registration || result.registration?.normalizedRegistration || '';
-    const detailBits = [registration, result.fuelType || result.fuel, result.bodyStyle, result.year].filter(Boolean);
-    return `<article class="submission-item"><img src="${escapeHtml(item.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(vehicle)}"><div class="submission-main"><span class="status-pill status-approved">private app scan</span><h3>${escapeHtml(vehicle)}</h3><p>${escapeHtml(detailBits.join(' · ') || 'Synced from PaddockScan')}</p><small>${dateText(item.updatedAt || item.createdAtIso)}</small></div></article>`;
+    const data = vehicleDisplayData(item);
+    const confidence = data.confidence !== '' && data.confidence !== undefined
+      ? `${Math.round(Number(data.confidence) * 100)}%`
+      : '';
+    const rows = [
+      detailRow('Registration', data.registration),
+      detailRow('Make', data.make),
+      detailRow('Model', data.model),
+      detailRow('Generation', data.generation),
+      detailRow('Variant', data.variant),
+      detailRow('Model year', data.year),
+      detailRow('Estimated production years', data.yearRange),
+      detailRow('Body style', data.bodyStyle),
+      detailRow('Colour', data.colour),
+      detailRow('Fuel', data.fuel),
+      detailRow('Transmission', data.transmission),
+      detailRow('Drivetrain', data.drivetrain),
+      detailRow('Power', data.power ? `${data.power} bhp` : ''),
+      detailRow('Identification confidence', confidence),
+      detailRow('Information status', String(data.verification || '').replaceAll('_', ' ').toLowerCase())
+    ].filter(Boolean).join('');
+    const features = data.features.length
+      ? `<div class="vehicle-feature-list"><h4>IDENTIFYING FEATURES</h4><ul>${data.features.map(feature => `<li>${escapeHtml(feature)}</li>`).join('')}</ul></div>`
+      : '';
+    const history = data.history
+      ? `<section class="garage-history"><h4>PADDOCKSCAN VEHICLE HISTORY</h4><div>${escapeHtml(data.history).replace(/\n/g, '<br>')}</div><p class="history-disclaimer">This overview is loaded from the same saved vehicle record used by the app. Opening it on the website does not prepare a second version.</p></section>`
+      : `<section class="garage-history empty-history"><h4>PADDOCKSCAN VEHICLE HISTORY</h4><p>Open the information button for this vehicle in the app once. The saved history will then appear here automatically.</p></section>`;
+    return `<details class="garage-vehicle-card"><summary><div class="vehicle-thumb plate-mask"><img src="${escapeHtml(item.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(data.title)}"></div><div class="garage-vehicle-heading"><span class="status-pill status-approved">private app vehicle</span><h3>${escapeHtml(data.title)}</h3><p>${escapeHtml([data.registration, data.fuel, data.bodyStyle, data.year].filter(Boolean).join(' · ') || 'Synced from PaddockScan')}</p><small>${dateText(item.updatedAt || item.createdAtIso)}</small></div><span class="garage-chevron" aria-hidden="true">⌄</span></summary><div class="garage-dropdown"><section><h4>VEHICLE DETAILS</h4><div class="vehicle-detail-grid">${rows || '<p>No structured vehicle details are saved yet.</p>'}</div></section>${features}${history}<div class="garage-actions"><a class="button button-small" href="#submit" data-garage-submit="${escapeHtml(item.id)}">Add to The Paddock</a></div></div></details>`;
   }
 
   function renderGarage() {
@@ -416,7 +539,15 @@
   }
 
   async function uploadFiles(files, submissionId, ownerUid) {
-    const urls=[]; for(let i=0;i<files.length;i++){ const file=files[i], ext=(file.name.split('.').pop()||'jpg').toLowerCase(); const ref=storage.ref(`community/${ownerUid}/${submissionId}/${i}-${Date.now()}.${ext}`); await ref.put(file,{contentType:file.type}); urls.push(await ref.getDownloadURL()); } return urls;
+    const urls=[];
+    for(let i=0;i<files.length;i++){
+      const protectedFile = await privacyMaskedFile(files[i]);
+      const ext=(protectedFile.name.split('.').pop()||'jpg').toLowerCase();
+      const ref=storage.ref(`community/${ownerUid}/${submissionId}/${i}-${Date.now()}.${ext}`);
+      await ref.put(protectedFile,{contentType:protectedFile.type});
+      urls.push(await ref.getDownloadURL());
+    }
+    return urls;
   }
 
   async function saveSubmission(status) {
@@ -446,7 +577,7 @@
 
   function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
 
-  function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Public owner credit</span><strong>${escapeHtml(item.ownerCredit || item.ownerName || '—')}</strong></div><div><span>Owner social/page link</span><strong>${ownerSocialUrl(item)?`<a href="${escapeHtml(ownerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Missing'}</strong></div><div><span>Photographer credit</span><strong>${escapeHtml(item.photographerCredit || 'Not supplied')}</strong></div><div><span>Photographer link</span><strong>${photographerSocialUrl(item)?`<a href="${escapeHtml(photographerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Not supplied'}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button><button class="text-link danger-text" data-delete-submission="${id}">Delete submission</button></div>`; $('#reviewDialog').showModal();}
+  function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<div class="review-image plate-mask"><img src="${escapeHtml(u)}" alt=""></div>`).join('')}</div><div class="review-meta"><div><span>Public owner credit</span><strong>${escapeHtml(item.ownerCredit || item.ownerName || '—')}</strong></div><div><span>Owner social/page link</span><strong>${ownerSocialUrl(item)?`<a href="${escapeHtml(ownerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Missing'}</strong></div><div><span>Photographer credit</span><strong>${escapeHtml(item.photographerCredit || 'Not supplied')}</strong></div><div><span>Photographer link</span><strong>${photographerSocialUrl(item)?`<a href="${escapeHtml(photographerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Not supplied'}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button><button class="text-link danger-text" data-delete-submission="${id}">Delete submission</button></div>`; $('#reviewDialog').showModal();}
 
   async function submissionAction(id, action) {
     const item = state.submissions.find(submission => submission.id === id);
