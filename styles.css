@@ -246,3 +246,26 @@
     font-size: 1.1rem;
   }
 }
+
+
+/* Public owner credit links */
+.owner-credit-link {
+  color: var(--accent, #d6ae36);
+  font-weight: 800;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.owner-credit-link:hover,
+.owner-credit-link:focus-visible {
+  color: #ffffff;
+  text-decoration: underline;
+}
+.review-meta a {
+  color: var(--accent, #d6ae36);
+}
+
+
+/* Public attribution */
+.photographer-byline { margin-top: .45rem; }
+.photographer-credit-link { color: var(--accent); font-weight: 800; text-decoration: none; }
+.photographer-credit-link:hover, .photographer-credit-link:focus-visible { text-decoration: underline; }

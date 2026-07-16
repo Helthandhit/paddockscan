@@ -86,6 +86,27 @@
 
     return safeUrl(candidate);
   };
+  const ownerCreditText = value => String(value?.ownerCredit || value?.ownerName || 'PaddockScan').trim() || 'PaddockScan';
+  const ownerSocialUrl = value => safeUrl(value?.ownerSocialUrl || value?.website || '');
+  const ownerCreditHtml = (value, className = 'owner-credit-link') => {
+    const credit = escapeHtml(ownerCreditText(value));
+    const link = ownerSocialUrl(value);
+    return link
+      ? `<a class="${className}" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener" data-owner-credit-link>${credit} ↗</a>`
+      : `<span class="${className}">${credit}</span>`;
+  };
+  const photographerCreditText = value => String(value?.photographerCredit || '').trim();
+  const photographerSocialUrl = value => safeUrl(value?.photographerSocialUrl || '');
+  const photographerCreditHtml = value => {
+    const creditText = photographerCreditText(value);
+    if (!creditText) return '';
+    const credit = escapeHtml(creditText);
+    const link = photographerSocialUrl(value);
+    return link
+      ? `<a class="photographer-credit-link" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener" data-owner-credit-link>${credit} ↗</a>`
+      : `<span class="photographer-credit-link">${credit}</span>`;
+  };
+
   const slug = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
   const uid = () => state.user?.uid || 'demo-user';
 
@@ -206,20 +227,20 @@
 
   function featuredPost() { return state.posts.find(p=>p.featured) || state.posts[0] || defaults.posts[0]; }
   function postCard(post) {
-    return `<article class="post-card" data-open-post="${escapeHtml(post.id)}"><div class="post-image"><img src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}" loading="lazy"><span>${escapeHtml(post.category || 'Community')}</span></div><div class="post-copy"><p class="eyebrow">${escapeHtml(post.year || 'FEATURE')}</p><h3>${escapeHtml(post.title || post.vehicle)}</h3><p>${escapeHtml(post.summary || String(post.story||'').slice(0,150))}</p><div class="post-meta"><span>${escapeHtml(post.ownerName || 'PaddockScan')}</span><span>${dateText(post.createdAt)}</span></div></div></article>`;
+    return `<article class="post-card" data-open-post="${escapeHtml(post.id)}"><div class="post-image"><img src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}" loading="lazy"><span>${escapeHtml(post.category || 'Community')}</span></div><div class="post-copy"><p class="eyebrow">${escapeHtml(post.year || 'FEATURE')}</p><h3>${escapeHtml(post.title || post.vehicle)}</h3><p>${escapeHtml(post.summary || String(post.story||'').slice(0,150))}</p><div class="post-meta"><span>${ownerCreditHtml(post)}</span><span>${dateText(post.createdAt)}</span></div></div></article>`;
   }
 
   function renderPosts() {
     const feature = featuredPost();
-    $('#featuredCard').innerHTML = `<div class="featured-image"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(feature.title || feature.vehicle)}"><span class="feature-badge">CURRENT WINNER</span></div><div class="featured-copy"><p class="eyebrow">${escapeHtml(feature.category || 'FEATURED')}</p><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${escapeHtml(feature.summary || feature.story || '')}</p><div class="feature-stats"><div><span>Owner</span><strong>${escapeHtml(feature.ownerName || 'PaddockScan')}</strong></div><div><span>Location</span><strong>${escapeHtml(feature.location || 'United Kingdom')}</strong></div><div><span>Year</span><strong>${escapeHtml(feature.year || '—')}</strong></div></div><button class="button" data-open-post="${escapeHtml(feature.id)}">Read the story</button></div>`;
+    $('#featuredCard').innerHTML = `<div class="featured-image"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(feature.title || feature.vehicle)}"><span class="feature-badge">CURRENT WINNER</span></div><div class="featured-copy"><p class="eyebrow">${escapeHtml(feature.category || 'FEATURED')}</p><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${escapeHtml(feature.summary || feature.story || '')}</p><div class="feature-stats"><div><span>Owner credit</span><strong>${ownerCreditHtml(feature)}</strong></div><div><span>Location</span><strong>${escapeHtml(feature.location || 'United Kingdom')}</strong></div><div><span>Year</span><strong>${escapeHtml(feature.year || '—')}</strong></div></div><button class="button" data-open-post="${escapeHtml(feature.id)}">Read the story</button></div>`;
     $('#homePostGrid').innerHTML = state.posts.filter(p=>p.id!==feature.id).slice(0,3).map(postCard).join('') || postCard(feature);
     filterCommunity();
-    $('#hubFeatured').innerHTML = `<img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt=""><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${escapeHtml(feature.ownerName || 'PaddockScan')}</p>`;
+    $('#hubFeatured').innerHTML = `<img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt=""><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${ownerCreditHtml(feature)}</p>`;
   }
 
   function filterCommunity() {
     const term = ($('#postSearch')?.value || '').trim().toLowerCase(); const category = $('#categoryFilter')?.value || 'all';
-    const items = state.posts.filter(p => (category==='all'||p.category===category) && (!term || [p.title,p.vehicle,p.ownerName,p.category,p.story].join(' ').toLowerCase().includes(term)));
+    const items = state.posts.filter(p => (category==='all'||p.category===category) && (!term || [p.title,p.vehicle,p.ownerCredit,p.ownerName,p.category,p.story].join(' ').toLowerCase().includes(term)));
     $('#communityPostGrid').innerHTML = items.map(postCard).join(''); $('#communityEmpty').hidden = !!items.length;
   }
 
@@ -303,13 +324,13 @@
       ? `<section class="feature-section vehicle-history-section"><p class="eyebrow">PADDOCKSCAN VEHICLE HISTORY</p><div class="article-body">${escapeHtml(history).replace(/\n/g,'<br>')}</div><p class="history-disclaimer">AI-generated editorial history. Official vehicle data should be checked independently.</p></section>`
       : '';
 
-    $('#postDetail').innerHTML = `<img class="post-detail-image" src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}"><div class="post-detail-copy"><p class="eyebrow">${escapeHtml(post.category || 'COMMUNITY')}</p><h1>${escapeHtml(post.title || post.vehicle)}</h1><div class="detail-byline">By ${escapeHtml(post.ownerName || 'PaddockScan')} · ${dateText(post.createdAt)}${post.location?` · ${escapeHtml(post.location)}`:''}</div>${showSummary?`<p class="lead">${escapeHtml(summary)}</p>`:''}${storySection}${historySection}<div class="detail-actions">${link?`<a class="button button-secondary" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener">Owner link ↗</a>`:''}<button class="text-link" data-report-post="${escapeHtml(post.id)}">Report this post</button></div></div>`;
+    $('#postDetail').innerHTML = `<img class="post-detail-image" src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}"><div class="post-detail-copy"><p class="eyebrow">${escapeHtml(post.category || 'COMMUNITY')}</p><h1>${escapeHtml(post.title || post.vehicle)}</h1><div class="detail-byline">Owner credit: ${ownerCreditHtml(post)} · ${dateText(post.createdAt)}${post.location?` · ${escapeHtml(post.location)}`:''}</div>${photographerCreditText(post)?`<div class="detail-byline photographer-byline">Photography: ${photographerCreditHtml(post)}</div>`:''}${showSummary?`<p class="lead">${escapeHtml(summary)}</p>`:''}${storySection}${historySection}<div class="detail-actions">${link?`<a class="button button-secondary" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener">Owner link ↗</a>`:''}<button class="text-link" data-report-post="${escapeHtml(post.id)}">Report this post</button></div></div>`;
   }
 
   function submissionItem(item, admin=false) {
     const img = item.imageUrls?.[0] || item.imageUrl || 'assets/car-placeholder.svg';
     const actions = admin ? `<div class="submission-actions"><button class="button button-small button-secondary" data-review-submission="${item.id}">Review</button></div>` : '';
-    return `<article class="submission-item"><img src="${escapeHtml(img)}" alt=""><div class="submission-main"><span class="status-pill status-${escapeHtml(item.status||'draft')}">${escapeHtml((item.status||'draft').replaceAll('_',' '))}</span><h3>${escapeHtml(item.vehicle || 'Untitled vehicle')}</h3><p>${escapeHtml(item.ownerName || '')} · ${dateText(item.createdAt)}</p></div>${actions}</article>`;
+    return `<article class="submission-item"><img src="${escapeHtml(img)}" alt=""><div class="submission-main"><span class="status-pill status-${escapeHtml(item.status||'draft')}">${escapeHtml((item.status||'draft').replaceAll('_',' '))}</span><h3>${escapeHtml(item.vehicle || 'Untitled vehicle')}</h3><p>${escapeHtml(item.ownerCredit || item.ownerName || '')} · ${dateText(item.createdAt)}</p></div>${actions}</article>`;
   }
 
   function cloudGarageItem(item) {
@@ -347,7 +368,7 @@
   function renderAdminLists() {
     const filter=$('#submissionStatusFilter')?.value||'all'; const subs=state.submissions.filter(s=>filter==='all'||s.status===filter);
     $('#adminSubmissionList').innerHTML=subs.map(i=>submissionItem(i,true)).join('')||'<div class="empty-state"><p>No matching submissions.</p></div>';
-    $('#adminPostList').innerHTML=state.posts.map(p=>`<article class="submission-item"><img src="${escapeHtml(p.imageUrl||'assets/car-placeholder.svg')}" alt=""><div class="submission-main"><span class="status-pill status-approved">published</span><h3>${escapeHtml(p.title||p.vehicle)}</h3><p>${escapeHtml(p.ownerName||'PaddockScan')} · ${dateText(p.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-edit-post="${p.id}">Edit</button><button class="button button-small button-secondary" data-feature-post="${p.id}">${p.featured?'Featured':'Feature'}</button><button class="button button-small danger-button" data-delete-post="${p.id}">Remove</button></div></article>`).join('');
+    $('#adminPostList').innerHTML=state.posts.map(p=>`<article class="submission-item"><img src="${escapeHtml(p.imageUrl||'assets/car-placeholder.svg')}" alt=""><div class="submission-main"><span class="status-pill status-approved">published</span><h3>${escapeHtml(p.title||p.vehicle)}</h3><p>${ownerCreditHtml(p)} · ${dateText(p.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-edit-post="${p.id}">Edit</button><button class="button button-small button-secondary" data-feature-post="${p.id}">${p.featured?'Featured':'Feature'}</button><button class="button button-small danger-button" data-delete-post="${p.id}">Remove</button></div></article>`).join('');
     $('#reportList').innerHTML=state.reports.map(r=>`<article class="submission-item"><div class="submission-main"><span class="status-pill">${escapeHtml(r.status||'open')}</span><h3>${escapeHtml(r.reason||'Content report')}</h3><p>${escapeHtml(r.details||'No details')} · ${dateText(r.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-resolve-report="${r.id}">Resolve</button></div></article>`).join('')||'<div class="empty-state"><p>No reports.</p></div>';
     $('#userList').innerHTML=(state.users.length?state.users:[{id:uid(),displayName:state.profile?.displayName||state.user?.displayName,email:state.user?.email,role:'admin'}]).map(u=>`<article class="submission-item"><div class="account-avatar">${initials(u.displayName)}</div><div class="submission-main"><h3>${escapeHtml(u.displayName||'User')}</h3><p>${escapeHtml(u.email||'')} · ${escapeHtml(u.role||'user')}</p></div></article>`).join('');
   }
@@ -402,15 +423,15 @@
     const form=$('#submissionForm'); if(status==='pending'&&!form.reportValidity())return;
     if(state.settings.submissionsOpen===false&&status==='pending'){toast('Submissions are paused.');return;}
     const data=Object.fromEntries(new FormData(form).entries());
-    const item={ownerUid:uid(),ownerName:String(data.ownerName||state.profile?.displayName||state.user?.displayName||'Demo owner').trim(),location:String(data.location||'').trim(),vehicle:String(data.vehicle||'').trim(),year:String(data.year||'').trim(),category:String(data.category||'Community'),website:normaliseWebsiteUrl(data.website),story:String(data.story||'').trim(),summary:String(data.story||'').trim().slice(0,280),hidePlate:data.hidePlate==='on',consent:data.consent==='on',status,createdAt:nowIso(),updatedAt:nowIso()};
-    if(!item.vehicle){toast('Add the vehicle name first.');return;}
+    const credit=String(data.ownerCredit||'').trim(); const socialUrl=normaliseWebsiteUrl(data.ownerSocialUrl); const photographerCredit=String(data.photographerCredit||'').trim(); const photographerSocialUrl=normaliseWebsiteUrl(data.photographerSocialUrl); const item={ownerUid:uid(),ownerCredit:credit,ownerName:credit,ownerSocialUrl:socialUrl,website:socialUrl,photographerCredit,photographerSocialUrl,location:String(data.location||'').trim(),vehicle:String(data.vehicle||'').trim(),year:String(data.year||'').trim(),category:String(data.category||'Community'),story:String(data.story||'').trim(),summary:String(data.story||'').trim().slice(0,280),hidePlate:data.hidePlate==='on',consent:data.consent==='on',status,createdAt:nowIso(),updatedAt:nowIso()};
+    if(!item.vehicle){toast('Add the vehicle name first.');return;} if(!item.ownerCredit){toast('Add the public owner credit.');return;} if(status==='pending'&&!item.ownerSocialUrl){toast('Add the owner social or page link.');return;} if(item.photographerCredit && !item.photographerSocialUrl){toast('Add the photographer social/page link, or remove the photographer credit.');return;}
     $('#submissionStatus').textContent='Saving…';
     try{
       if(state.mode==='firebase'){
         if(!state.user){await signIn();return;}
         const ref=db.collection('submissions').doc(); item.imageUrls=await uploadFiles(state.selectedImages,ref.id,state.user.uid); item.ownerEmail=state.user.email||''; item.createdAt=firebase.firestore.FieldValue.serverTimestamp(); item.updatedAt=item.createdAt; await ref.set(item);
       } else { item.id=`sub-${Date.now()}`; item.imageUrls=state.selectedImages.length?await filesToDataUrls(state.selectedImages):['assets/car-placeholder.svg']; state.submissions.unshift(item); saveDemo(); }
-      form.reset(); if (form.elements.website) form.elements.website.value='https://www.'; state.selectedImages=[]; renderImagePreviews(); $('#storyCount').textContent='0'; $('#submissionStatus').textContent=status==='draft'?'Draft saved in My Garage.':'Submitted for review.'; toast(status==='draft'?'Draft saved':'Submission sent'); await refreshFirebaseData(); renderAll();
+      form.reset(); if (form.elements.ownerSocialUrl) form.elements.ownerSocialUrl.value='https://www.'; if (form.elements.photographerSocialUrl) form.elements.photographerSocialUrl.value='https://www.'; state.selectedImages=[]; renderImagePreviews(); $('#storyCount').textContent='0'; $('#submissionStatus').textContent=status==='draft'?'Draft saved in My Garage.':'Submitted for review.'; toast(status==='draft'?'Draft saved':'Submission sent'); await refreshFirebaseData(); renderAll();
     } catch (error) {
       console.error(error);
 
@@ -425,7 +446,7 @@
 
   function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
 
-  function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Owner</span><strong>${escapeHtml(item.ownerName)}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button><button class="text-link danger-text" data-delete-submission="${id}">Delete submission</button></div>`; $('#reviewDialog').showModal();}
+  function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<img src="${escapeHtml(u)}" alt="">`).join('')}</div><div class="review-meta"><div><span>Public owner credit</span><strong>${escapeHtml(item.ownerCredit || item.ownerName || '—')}</strong></div><div><span>Owner social/page link</span><strong>${ownerSocialUrl(item)?`<a href="${escapeHtml(ownerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Missing'}</strong></div><div><span>Photographer credit</span><strong>${escapeHtml(item.photographerCredit || 'Not supplied')}</strong></div><div><span>Photographer link</span><strong>${photographerSocialUrl(item)?`<a href="${escapeHtml(photographerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Not supplied'}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button><button class="text-link danger-text" data-delete-submission="${id}">Delete submission</button></div>`; $('#reviewDialog').showModal();}
 
   async function submissionAction(id, action) {
     const item = state.submissions.find(submission => submission.id === id);
@@ -443,7 +464,8 @@
           const post = {
             title: item.vehicle,
             vehicle: item.vehicle,
-            ownerName: item.ownerName,
+            ownerCredit: item.ownerCredit || item.ownerName || 'PaddockScan',
+            ownerName: item.ownerCredit || item.ownerName || 'PaddockScan',
             ownerUid: item.ownerUid,
             garageScanId: item.garageScanId || item.scanId || item.vehicleId || '',
             location: item.location || '',
@@ -452,7 +474,10 @@
             summary: item.summary || String(item.story || '').slice(0, 280),
             story: item.story || '',
             historyText,
-            website: item.website || '',
+            ownerSocialUrl: item.ownerSocialUrl || item.website || '',
+            website: item.ownerSocialUrl || item.website || '',
+            photographerCredit: item.photographerCredit || '',
+            photographerSocialUrl: item.photographerSocialUrl || '',
             imageUrl: item.imageUrls?.[0] || item.imageUrl || 'assets/car-placeholder.svg',
             published: true,
             featured: false,
@@ -502,14 +527,16 @@
     const form = $('#editPostForm');
     form.elements.postId.value = post.id;
     form.elements.title.value = post.title || post.vehicle || '';
-    form.elements.ownerName.value = post.ownerName || '';
+    form.elements.ownerCredit.value = post.ownerCredit || post.ownerName || '';
     form.elements.location.value = post.location || '';
     form.elements.year.value = post.year || '';
     form.elements.category.value = post.category || 'Community';
     form.elements.summary.value = post.summary || '';
     form.elements.story.value = post.story || '';
     form.elements.historyText.value = historyTextFrom(post.historyText || '');
-    form.elements.website.value = post.website || 'https://www.';
+    form.elements.ownerSocialUrl.value = post.ownerSocialUrl || post.website || 'https://www.';
+    form.elements.photographerCredit.value = post.photographerCredit || '';
+    form.elements.photographerSocialUrl.value = post.photographerSocialUrl || 'https://www.';
     form.elements.imageUrl.value = post.imageUrl || '';
     $('#editPostDialog').showModal();
   }
@@ -526,14 +553,18 @@
     const update = {
       title: form.elements.title.value.trim(),
       vehicle: form.elements.title.value.trim(),
-      ownerName: form.elements.ownerName.value.trim(),
+      ownerCredit: form.elements.ownerCredit.value.trim(),
+      ownerName: form.elements.ownerCredit.value.trim(),
       location: form.elements.location.value.trim(),
       year: form.elements.year.value.trim(),
       category: form.elements.category.value.trim() || 'Community',
       summary: form.elements.summary.value.trim(),
       story: form.elements.story.value.trim(),
       historyText: form.elements.historyText.value.trim(),
-      website: normaliseWebsiteUrl(form.elements.website.value),
+      ownerSocialUrl: normaliseWebsiteUrl(form.elements.ownerSocialUrl.value),
+      website: normaliseWebsiteUrl(form.elements.ownerSocialUrl.value),
+      photographerCredit: form.elements.photographerCredit.value.trim(),
+      photographerSocialUrl: normaliseWebsiteUrl(form.elements.photographerSocialUrl.value),
       imageUrl: form.elements.imageUrl.value.trim() || 'assets/car-placeholder.svg',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -591,6 +622,7 @@
     $$('#hubNav button').forEach(b=>b.addEventListener('click',()=>{$$('#hubNav button').forEach(x=>x.classList.toggle('active',x===b));$$('.hub-panel').forEach(p=>p.classList.toggle('active',p.dataset.hubPanel===b.dataset.hubTab));$('#hubTitle').textContent=b.textContent.replace(/\d+/g,'').trim()}));
     document.addEventListener('click',async e=>{
       const authBtn=e.target.closest('[data-auth]');if(authBtn){e.preventDefault();$('#accountDialog')?.close();state.user?await signOut():await signIn();return}
+      const ownerLink=e.target.closest('[data-owner-credit-link]');if(ownerLink){e.stopPropagation();return}
       const open=e.target.closest('[data-open-post]');if(open){location.hash=`#post/${open.dataset.openPost}`;return}
       const back=e.target.closest('[data-back]');if(back){location.hash=`#${state.lastPublicRoute||'community'}`;return}
       const rem=e.target.closest('[data-remove-image]');if(rem){state.selectedImages.splice(Number(rem.dataset.removeImage),1);renderImagePreviews();return}

@@ -103,12 +103,14 @@
             <button id="chooseImagesButton" class="button button-secondary" type="button">Choose photos</button>
           </div>
           <div class="form-grid">
-            <label><span>Display name *</span><input name="ownerName" required maxlength="60" autocomplete="name" placeholder="George"></label>
+            <label><span>Public owner credit *</span><input name="ownerCredit" required maxlength="80" autocomplete="off" placeholder="@yourhandle or business/page name"></label>
             <label><span>Broad location</span><input name="location" maxlength="60" placeholder="South Wales"></label>
             <label class="wide"><span>Vehicle *</span><input name="vehicle" required maxlength="110" placeholder="2018 Ford Mustang GT"></label>
             <label><span>Model year</span><input name="year" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="2018"></label>
             <label><span>Category *</span><select name="category" required><option>Performance</option><option>Modified</option><option>Classic</option><option>Modern classic</option><option>Everyday hero</option><option>Rare find</option><option>Supercar</option></select></label>
-            <label class="wide"><span>Website or social link</span><input name="website" type="text" inputmode="url" autocomplete="url" maxlength="250" value="https://www." aria-label="Website or social link"></label>
+            <label class="wide"><span>Owner social/page link *</span><input name="ownerSocialUrl" required type="text" inputmode="url" autocomplete="url" maxlength="250" value="https://www." aria-label="Owner social or page link"><small>This public link must match the owner credit above, for example Instagram, Facebook, YouTube or a business website.</small></label>
+            <label><span>Photographer credit</span><input name="photographerCredit" maxlength="80" autocomplete="off" placeholder="@photographer or studio name"></label>
+            <label><span>Photographer social/page link</span><input name="photographerSocialUrl" type="text" inputmode="url" autocomplete="url" maxlength="250" value="https://www." aria-label="Photographer social or page link"><small>Optional. Add this only when a photographer or studio should be credited.</small></label>
             <label class="wide"><span>Vehicle story *</span><textarea name="story" required maxlength="1500" rows="7" placeholder="What makes it special? Tell us about its history, modifications, memories or why you chose it."></textarea><small class="field-count"><span id="storyCount">0</span>/1500</small></label>
             <label class="wide check-row"><input name="hidePlate" type="checkbox" checked><span>Hide or replace the registration plate before publishing.</span></label>
             <label class="wide check-row"><input name="consent" type="checkbox" required><span>I own these photos or have permission to use them, and allow PaddockScan to display the approved submission.</span></label>
@@ -192,14 +194,16 @@
       <input type="hidden" name="postId">
       <div class="form-grid">
         <label class="wide"><span>Vehicle/title</span><input name="title" required maxlength="120"></label>
-        <label><span>Owner credit</span><input name="ownerName" maxlength="80"></label>
+        <label><span>Public owner credit</span><input name="ownerCredit" required maxlength="80" placeholder="@handle or page name"></label>
         <label><span>Location</span><input name="location" maxlength="80"></label>
         <label><span>Year</span><input name="year" maxlength="20"></label>
         <label><span>Category</span><input name="category" maxlength="60"></label>
         <label class="wide"><span>Short summary</span><textarea name="summary" rows="3" maxlength="500"></textarea></label>
         <label class="wide"><span>Owner story</span><textarea name="story" rows="7" maxlength="5000"></textarea></label>
         <label class="wide"><span>PaddockScan vehicle history</span><textarea name="historyText" rows="10" maxlength="15000"></textarea></label>
-        <label class="wide"><span>Owner website/social link</span><input name="website" type="text" inputmode="url" value="https://www."></label>
+        <label class="wide"><span>Owner social/page link</span><input name="ownerSocialUrl" required type="text" inputmode="url" value="https://www."></label>
+        <label><span>Photographer credit</span><input name="photographerCredit" maxlength="80" placeholder="@photographer or studio"></label>
+        <label><span>Photographer social/page link</span><input name="photographerSocialUrl" type="text" inputmode="url" value="https://www."></label>
         <label class="wide"><span>Main image URL</span><input name="imageUrl" type="url"></label>
       </div>
       <div class="form-actions">
