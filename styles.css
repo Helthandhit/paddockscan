@@ -187,3 +187,62 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* Owner Hub button visibility fix */
+#hubNav button {
+  background: #171b20;
+  color: #f4f6f8;
+  border: 1px solid #3a424c;
+  border-radius: 14px;
+  opacity: 1;
+}
+
+#hubNav button:hover,
+#hubNav button:focus-visible {
+  background: #232a31;
+  border-color: #d6ae36;
+  color: #ffffff;
+  outline: none;
+}
+
+#hubNav button.active {
+  background: #d6ae36;
+  color: #111111;
+  border-color: #d6ae36;
+  box-shadow: 0 0 0 2px rgba(214,174,54,.18);
+}
+
+#hubNav button .hub-nav-icon,
+#hubNav button .hub-nav-label,
+#hubNav button span {
+  color: inherit;
+  opacity: 1;
+}
+
+@media (max-width: 760px) {
+  #hubNav button,
+  #hubNav button.active {
+    min-height: 68px;
+    background: #171b20;
+    color: #f4f6f8;
+    border: 1px solid #3a424c;
+  }
+
+  #hubNav button.active {
+    background: #d6ae36;
+    color: #111111;
+    border-color: #d6ae36;
+  }
+
+  #hubNav .hub-nav-label {
+    color: inherit;
+    font-size: .66rem;
+    font-weight: 800;
+  }
+
+  #hubNav .hub-nav-icon {
+    color: inherit;
+    font-size: 1.1rem;
+  }
+}
