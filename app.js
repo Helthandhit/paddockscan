@@ -588,7 +588,7 @@
     $('#designerForm').addEventListener('submit',saveSettings);$('#previewHomeButton').addEventListener('click',()=>location.hash='#home');$('#editorialForm').addEventListener('submit',publishEditorial);$('#chooseEditorialImage').addEventListener('click',()=>$('#editorialImage').click());$('#editorialImage').addEventListener('change',e=>{state.editorialImage=e.target.files?.[0]||null;if(state.editorialImage)$('#editorialImagePreview img').src=URL.createObjectURL(state.editorialImage)});
     $('#reportForm').addEventListener('submit',submitReport);$('#editPostForm').addEventListener('submit',savePostEdit);$('#profileForm').addEventListener('submit',saveProfile);$('#editProfileButton').addEventListener('click',()=>{const f=$('#profileForm');f.displayName.value=state.profile?.displayName||state.user?.displayName||'';f.location.value=state.profile?.location||'';f.bio.value=state.profile?.bio||'';f.website.value=state.profile?.website||'https://www.';$('#profileDialog').showModal()});
     $('#exportDemoButton').addEventListener('click',exportBackup);$('#importDemoInput').addEventListener('change',async e=>{try{await importBackup(e.target.files[0])}catch(err){toast(err.message)}e.target.value=''});$('#resetDemoButton').addEventListener('click',()=>{if(confirm('Reset all local demo content?')){localStorage.removeItem(DEMO_KEY);loadDemo();renderAll();toast('Demo reset')}});$('#copyUidButton').addEventListener('click',async()=>{await navigator.clipboard.writeText(state.user?.uid||'');toast('UID copied')});
-    $$('#hubNav button').forEach(b=>b.addEventListener('click',()=>{$$('#hubNav button').forEach(x=>x.classList.toggle('active',x===b));$$('.hub-panel').forEach(p=>p.classList.toggle('active',p.dataset.hubPanel===b.dataset.hub));$('#hubTitle').textContent=b.textContent.replace(/\d+/g,'').trim()}));
+    $$('#hubNav button').forEach(b=>b.addEventListener('click',()=>{$$('#hubNav button').forEach(x=>x.classList.toggle('active',x===b));$$('.hub-panel').forEach(p=>p.classList.toggle('active',p.dataset.hubPanel===b.dataset.hubTab));$('#hubTitle').textContent=b.textContent.replace(/\d+/g,'').trim()}));
     document.addEventListener('click',async e=>{
       const authBtn=e.target.closest('[data-auth]');if(authBtn){e.preventDefault();$('#accountDialog')?.close();state.user?await signOut():await signIn();return}
       const open=e.target.closest('[data-open-post]');if(open){location.hash=`#post/${open.dataset.openPost}`;return}
@@ -603,7 +603,7 @@
       const report=e.target.closest('[data-report-post]');if(report){$('#reportForm').postId.value=report.dataset.reportPost;$('#reportDialog').showModal();return}
       const resolve=e.target.closest('[data-resolve-report]');if(resolve){const id=resolve.dataset.resolveReport;if(state.mode==='firebase')await db.collection('reports').doc(id).update({status:'resolved'});else{const r=state.reports.find(x=>x.id===id);if(r)r.status='resolved';saveDemo()}renderAll();return}
       const close=e.target.closest('[data-close-dialog]');if(close){document.getElementById(close.dataset.closeDialog).close();return}
-      const go=e.target.closest('[data-go-hub]');if(go){$(`#hubNav button[data-hub="${go.dataset.goHub}"]`)?.click();return}
+      const go=e.target.closest('[data-go-hub]');if(go){$(`#hubNav button[data-hub-tab="${go.dataset.goHub}"]`)?.click();return}
     });
   }
 
