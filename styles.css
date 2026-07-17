@@ -273,7 +273,7 @@
 
 /* Garage vehicle dropdown and registration privacy */
 .plate-mask{position:relative;overflow:hidden}
-.plate-mask::after{content:"PLATE HIDDEN";position:absolute;left:23%;right:23%;top:63%;height:10%;min-height:22px;display:grid;place-items:center;background:#08090a;color:#e7c459;border:1px solid rgba(214,174,54,.8);border-radius:5px;font-size:clamp(.48rem,1.2vw,.7rem);font-weight:900;letter-spacing:.12em;line-height:1;pointer-events:none;box-shadow:0 3px 12px rgba(0,0,0,.55)}
+
 .vehicle-thumb{width:100px;height:74px;border-radius:11px;background:#080a0b;flex:0 0 auto}
 .vehicle-thumb img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .vehicle-image-frame{position:relative;border-radius:15px;overflow:hidden}
@@ -307,7 +307,7 @@
   .garage-vehicle-card .vehicle-thumb{width:76px;height:66px}
   .vehicle-detail-grid{grid-template-columns:1fr}
   .garage-dropdown{padding:14px}
-  .plate-mask::after{left:20%;right:20%;font-size:.48rem}
+  
 }
 
 
@@ -318,3 +318,18 @@
 @keyframes paddockspin{to{transform:rotate(360deg)}}
 .garage-actions{gap:10px;flex-wrap:wrap}
 @media(max-width:560px){.garage-actions .button{width:100%;text-align:center}}
+
+
+/* Website photo numberplate editor */
+.plate-editor-dialog{width:min(1060px,calc(100% - 18px));max-width:none;padding:0;background:transparent;border:0}
+.plate-editor-card{width:100%;max-width:none;padding:20px}
+.plate-editor-instruction{color:var(--muted);margin:.25rem 0 12px}
+.plate-editor-stage{display:grid;place-items:center;background:#050607;border:1px solid var(--line);border-radius:15px;overflow:hidden;min-height:260px;max-height:65vh}
+#plateEditorCanvas{display:block;max-width:100%;max-height:65vh;width:auto;height:auto;touch-action:none;cursor:crosshair}
+.plate-editor-controls{display:grid;grid-template-columns:1.25fr repeat(3,1fr);gap:10px;margin-top:12px}
+.plate-editor-controls label{display:grid;gap:6px;padding:10px;background:#111519;border:1px solid var(--line);border-radius:11px}
+.plate-editor-controls label span{color:var(--muted);font-size:.76rem;font-weight:700}
+.plate-editor-controls select,.plate-editor-controls input{width:100%}
+.plate-no-visible{margin-top:12px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#111519}
+.plate-editor-actions{margin-top:14px;justify-content:flex-end}
+@media(max-width:760px){.plate-editor-card{padding:14px}.plate-editor-controls{grid-template-columns:1fr 1fr}.plate-editor-stage{min-height:220px}.plate-editor-actions{display:grid;grid-template-columns:1fr 1fr}.plate-editor-actions #applyPlateEdit{grid-column:1/-1}.plate-editor-actions .button{width:100%}}

@@ -1,4 +1,4 @@
-const CACHE='paddockscan-phase2-v2-hotfix';
+const CACHE='paddockscan-plate-editor-v1';
 const CORE=['./','./index.html','./styles.css','./app.js','./site-config.js','./manifest.webmanifest','./assets/paddockscan-logo.png','./assets/car-placeholder.svg','./assets/icon-192.png','./assets/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

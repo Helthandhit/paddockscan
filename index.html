@@ -213,6 +213,23 @@
     </form>
   </dialog>
 
+  <dialog id="plateEditorDialog" class="dialog plate-editor-dialog">
+    <div class="dialog-card plate-editor-card">
+      <p class="eyebrow">PHOTO PRIVACY EDITOR <span id="plateEditorFileCount"></span></p>
+      <h2>Replace the numberplate</h2>
+      <p id="plateEditorInstruction" class="plate-editor-instruction">Drag from one end of the numberplate to the other.</p>
+      <div class="plate-editor-stage"><canvas id="plateEditorCanvas"></canvas></div>
+      <div class="plate-editor-controls">
+        <label><span>Cover style</span><select id="plateStyle"><option value="brand">PaddockScan plate</option><option value="black">Solid black</option><option value="blur">Blur</option></select></label>
+        <label><span>Height</span><input id="plateHeight" type="range" min="12" max="60" value="28"></label>
+        <label><span>Side padding</span><input id="platePadding" type="range" min="0" max="20" value="5"></label>
+        <label><span>Blur</span><input id="plateBlur" type="range" min="4" max="40" value="18"></label>
+      </div>
+      <label class="form-check plate-no-visible"><input id="noPlateVisible" class="form-check-input" type="checkbox"><span class="form-check-label">No numberplate is visible in this photo</span></label>
+      <div class="form-actions plate-editor-actions"><button id="skipPlatePhoto" class="button button-secondary" type="button">Cancel photo</button><button id="redrawPlate" class="button button-secondary" type="button">Redraw</button><button id="applyPlateEdit" class="button" type="button" disabled>Use edited photo</button></div>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" role="status"></div>
 
   <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
