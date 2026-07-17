@@ -1,15 +1,36 @@
-window.PADDOCKSCAN_CONFIG = {
-  firebase: {
-    apiKey: "AIzaSyD9Dbg3jSaoXd8wWObgsVKv_2g2L-tpbZ8",
-    authDomain: "paddockscan.firebaseapp.com",
-    projectId: "paddockscan",
-    storageBucket: "paddockscan.firebasestorage.app",
-    messagingSenderId: "467483184710",
-    appId: "1:467483184710:web:6936967ac1ca259c6c4447",
-    measurementId: "G-JKX1XVX9L1"
-  },
-  appCheckSiteKey: "",
-  domain: "paddockscan.com",
-  contactEmail: "paddockscan@gmail.com",
-  playStoreUrl: "https://play.google.com/apps/testing/com.healthandhit.paddockscan"
-};
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function admin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function validImage() {
+      return request.resource != null
+        && request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    match /users/{userId}/garage/{scanId}/{fileName} {
+      allow read, delete: if owner(userId) || admin();
+      allow create, update: if owner(userId) && validImage();
+    }
+
+    match /community/{userId}/{submissionId}/{fileName} {
+      allow read, delete: if owner(userId) || admin();
+      allow create, update: if owner(userId) && validImage();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

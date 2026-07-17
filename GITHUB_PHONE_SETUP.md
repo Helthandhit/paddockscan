@@ -1,82 +1,51 @@
-rules_version = '2';
+# Put PaddockScan online from an Android phone
 
-service cloud.firestore {
-  match /databases/{database}/documents {
+## 1. Create the repository
 
-    function signedIn() {
-      return request.auth != null;
-    }
+1. Open `github.com` in Chrome and sign in.
+2. Tap **+** and choose **New repository**.
+3. Name it `paddockscan-website`.
+4. Set it to **Public** if you want free GitHub Pages hosting.
+5. Do not add a README or other starter files.
+6. Create the repository.
 
-    function admin() {
-      return signedIn() && request.auth.token.admin == true;
-    }
+## 2. Upload the website
 
-    function owner(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
+1. Extract `PaddockScan_Full_Website.zip` in Samsung My Files.
+2. In the empty GitHub repository, choose **Add file → Upload files**.
+3. Upload the contents of the extracted folder, not the outer folder itself.
+4. Confirm that `index.html`, `styles.css`, `app.js`, `CNAME` and the `assets` folder are at the repository root.
+5. Commit the upload.
 
-    match /siteSettings/public {
-      allow read: if true;
-      allow write: if admin();
-    }
+GitHub's browser uploader may limit how many files can be selected at once. Upload the root files first, then open/create the `assets` folder and upload its files if necessary.
 
-    match /posts/{postId} {
-      allow read: if resource.data.published == true || admin();
-      allow create, update, delete: if admin();
-    }
+## 3. Enable GitHub Pages
 
-    match /submissions/{submissionId} {
-      allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.status in ['draft', 'pending'];
+1. Open the repository **Settings**.
+2. Open **Pages** under Code and automation.
+3. Under Build and deployment, choose **Deploy from a branch**.
+4. Select branch `main` and folder `/(root)`.
+5. Tap **Save**.
+6. GitHub will show the temporary address after deployment.
 
-      allow read: if admin()
-        || (
-          signedIn()
-          && resource.data.ownerUid == request.auth.uid
-        );
+## 4. Connect paddockscan.com
 
-      allow update: if admin()
-        || (
-          signedIn()
-          && resource.data.ownerUid == request.auth.uid
-          && request.resource.data.ownerUid == request.auth.uid
-          && request.resource.data.status in [
-            'draft',
-            'pending',
-            'changes_requested'
-          ]
-        );
+The included `CNAME` file contains `paddockscan.com`.
 
-      allow delete: if admin()
-        || (
-          signedIn()
-          && resource.data.ownerUid == request.auth.uid
-          && resource.data.status == 'draft'
-        );
-    }
+At your domain provider, add GitHub Pages DNS records:
 
-    match /users/{userId} {
-      allow read: if admin() || owner(userId);
-      allow create: if owner(userId);
+- Four `A` records for the root domain (`@`) using the current GitHub Pages IP addresses shown in GitHub's official custom-domain instructions.
+- A `CNAME` record for `www` pointing to your GitHub Pages hostname, normally `YOUR-GITHUB-USERNAME.github.io`.
 
-      allow update: if admin()
-        || (
-          owner(userId)
-          && request.resource.data.role == resource.data.role
-        );
+Then return to repository **Settings → Pages**, enter `paddockscan.com` under Custom domain and save it. Enable **Enforce HTTPS** after GitHub confirms the DNS.
 
-      allow delete: if admin() || owner(userId);
+## 5. Install the Owner Hub on Android
 
-      match /garage/{scanId} {
-        allow read, create, update, delete:
-          if owner(userId) || admin();
-      }
-    }
+1. Open `https://paddockscan.com/#hub` in Chrome.
+2. Open Chrome's menu.
+3. Choose **Add to Home screen** or **Install app**.
+4. The Hub will open like an Android app.
 
-    match /reports/{reportId} {
-      allow create: if signedIn();
-      allow read, update, delete: if admin();
-    }
-  }
-}
+## Important
+
+GitHub Pages hosts the website, but real shared sign-in and uploads require Firebase. Until Firebase is configured, the website clearly operates in local phone preview mode and data exists only on that browser.

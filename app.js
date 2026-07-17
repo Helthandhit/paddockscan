@@ -1,1 +1,742 @@
-<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><script>location.replace('./#home')</script><title>PaddockScan</title>
+(() => {
+  'use strict';
+
+  const CONFIG = window.PADDOCKSCAN_CONFIG || {};
+  const firebaseReady = !!(CONFIG.firebase && !String(CONFIG.firebase.apiKey || '').includes('PASTE_') && !String(CONFIG.firebase.appId || '').includes('PASTE_'));
+  const MAX_IMAGES = 6;
+  const MAX_BYTES = 8 * 1024 * 1024;
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+  const defaults = {
+    settings: {
+      heroEyebrow: 'THE PADDOCKSCAN COMMUNITY',
+      heroTitle: 'Every car has a story worth scanning.',
+      heroSubtitle: 'Share your vehicle, discover standout builds and enter the PaddockScan Car of the Month.',
+      competitionTitle: 'Car of the Month',
+      announcement: '',
+      accent: '#d6ae36',
+      submissionsOpen: true,
+      playStoreUrl: CONFIG.playStoreUrl || 'https://play.google.com/apps/testing/com.healthandhit.paddockscan'
+    },
+    posts: [],
+    submissions: [], reports: [], users: [], profile: null
+  };
+
+  let app = null, auth = null, db = null, storage = null, appCheck = null;
+  const state = {
+    user: null, admin: false, settings: clone(defaults.settings), posts: [], submissions: [], reports: [], users: [], profile: null, cloudGarage: [],
+    selectedImages: [], editorialImage: null, deferredInstall: null, lastPublicRoute: 'home'
+  };
+
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const nowIso = () => new Date().toISOString();
+  const asDate = value => {
+    if (!value) return new Date(0);
+    if (value.toDate) return value.toDate();
+    if (value.seconds) return new Date(value.seconds * 1000);
+    return new Date(value);
+  };
+  const dateText = value => asDate(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  const initials = name => String(name || 'PS').trim().split(/\s+/).slice(0,2).map(p => p[0]?.toUpperCase() || '').join('') || 'PS';
+  const safeUrl = value => {
+    try {
+      if (!value) return '';
+      const url = new URL(String(value).trim());
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch {
+      return '';
+    }
+  };
+
+  const normaliseWebsiteUrl = value => {
+    const trimmed = String(value || '').trim();
+
+    if (
+      !trimmed ||
+      /^(https?:\/\/)?(www\.)?$/i.test(trimmed)
+    ) {
+      return '';
+    }
+
+    let candidate = trimmed;
+
+    if (/^http:\/\//i.test(candidate)) {
+      candidate = candidate.replace(/^http:\/\//i, 'https://');
+    } else if (!/^https:\/\//i.test(candidate)) {
+      candidate = /^www\./i.test(candidate)
+        ? `https://${candidate}`
+        : `https://www.${candidate}`;
+    }
+
+    return safeUrl(candidate);
+  };
+  const ownerCreditText = value => String(value?.ownerCredit || value?.ownerName || 'PaddockScan').trim() || 'PaddockScan';
+  const ownerSocialUrl = value => safeUrl(value?.ownerSocialUrl || value?.website || '');
+  const ownerCreditHtml = (value, className = 'owner-credit-link') => {
+    const credit = escapeHtml(ownerCreditText(value));
+    const link = ownerSocialUrl(value);
+    return link
+      ? `<a class="${className}" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener" data-owner-credit-link>${credit} ↗</a>`
+      : `<span class="${className}">${credit}</span>`;
+  };
+  const photographerCreditText = value => String(value?.photographerCredit || '').trim();
+  const photographerSocialUrl = value => safeUrl(value?.photographerSocialUrl || '');
+  const photographerCreditHtml = value => {
+    const creditText = photographerCreditText(value);
+    if (!creditText) return '';
+    const credit = escapeHtml(creditText);
+    const link = photographerSocialUrl(value);
+    return link
+      ? `<a class="photographer-credit-link" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener" data-owner-credit-link>${credit} ↗</a>`
+      : `<span class="photographer-credit-link">${credit}</span>`;
+  };
+
+  const maskRegistration = value => {
+    const clean = String(value || '').replace(/\s+/g, '').toUpperCase();
+    if (!clean) return '';
+    if (clean.length <= 3) return '•••';
+    return `${clean.slice(0, 2)}${'•'.repeat(Math.max(3, clean.length - 3))}${clean.slice(-1)}`;
+  };
+
+  const firstValue = (...values) => values.find(value => value !== undefined && value !== null && String(value).trim() !== '');
+
+  function vehicleDisplayData(item) {
+    const result = item.result || {};
+    const identity = result.verifiedIdentity || result.aiIdentification || result.visualIdentification || {};
+    const visual = result.aiIdentification || {};
+    const specs = result.specifications || {};
+    const powertrain = specs.powertrain || {};
+    const performance = specs.performance || {};
+    const reg = firstValue(item.registration, result.registration?.normalizedRegistration, result.registration?.registration, visual.visibleRegistration);
+    return {
+      title: firstValue(item.title, result.title, [identity.modelYear || visual.estimatedYearFrom, identity.make || visual.make, identity.model || visual.model].filter(Boolean).join(' '), 'Saved vehicle'),
+      registration: maskRegistration(reg),
+      make: firstValue(identity.make, visual.make),
+      model: firstValue(identity.model, visual.model),
+      generation: firstValue(identity.generation, visual.generation),
+      variant: firstValue(identity.variant, visual.variant),
+      year: firstValue(identity.modelYear, result.year, visual.estimatedYearFrom),
+      yearRange: visual.estimatedYearFrom && visual.estimatedYearTo ? `${visual.estimatedYearFrom}–${visual.estimatedYearTo}` : '',
+      bodyStyle: firstValue(identity.bodyStyle, visual.bodyStyle, result.bodyStyle),
+      colour: firstValue(identity.colour, visual.colour, result.colour),
+      fuel: firstValue(result.fuelType, result.fuel, powertrain.fuelType),
+      drivetrain: firstValue(powertrain.drivetrain, visual.estimatedDrivetrain),
+      transmission: firstValue(powertrain.transmission, result.transmission),
+      power: firstValue(performance.powerBhp, performance.horsepowerBhp, result.horsepowerBhp),
+      confidence: firstValue(identity.confidence, visual.confidence, result.confidence?.overall),
+      verification: firstValue(result.verificationStatus, 'PADDOCKSCAN_IDENTIFICATION'),
+      features: Array.isArray(visual.distinguishingFeatures) ? visual.distinguishingFeatures : [],
+      history: historyTextFrom(item.historyText || item.history || item.vehicleHistory)
+    };
+  }
+
+  function detailRow(label, value) {
+    if (value === undefined || value === null || String(value).trim() === '') return '';
+    return `<div class="vehicle-detail-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+  }
+
+  async function privacyMaskedFile(file) {
+    if (!file || !String(file.type || '').startsWith('image/')) return file;
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    // Conservative lower-centre privacy cover where front/rear registration plates normally appear.
+    const width = canvas.width * 0.54;
+    const height = Math.max(34, canvas.height * 0.105);
+    const x = (canvas.width - width) / 2;
+    const y = canvas.height * 0.63;
+    const radius = Math.max(8, height * 0.18);
+    ctx.fillStyle = '#0a0b0c';
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fill();
+    ctx.strokeStyle = '#d6ae36';
+    ctx.lineWidth = Math.max(2, canvas.width * 0.003);
+    ctx.stroke();
+    ctx.fillStyle = '#f3d16a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${Math.max(12, height * 0.27)}px system-ui, sans-serif`;
+    ctx.fillText('PLATE HIDDEN', canvas.width / 2, y + height / 2);
+
+    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.92));
+    if (!blob) return file;
+    const extension = type === 'image/png' ? 'png' : 'jpg';
+    const base = String(file.name || 'vehicle').replace(/\.[^.]+$/, '');
+    return new File([blob], `${base}-plate-hidden.${extension}`, { type, lastModified: Date.now() });
+  }
+
+  const slug = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+  const uid = () => state.user?.uid || 'anonymous';
+
+  function toast(message) {
+    const el = $('#toast'); if (!el) return;
+    el.textContent = message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  async function initFirebase() {
+    if (!firebaseReady || !window.firebase) {
+      const banner = $('#connectionBanner');
+      banner.hidden = false;
+      banner.textContent = 'PaddockScan could not connect to Firebase. Live accounts and submissions are temporarily unavailable.';
+      return;
+    }
+    try {
+      app = firebase.initializeApp(CONFIG.firebase);
+      auth = firebase.auth(); db = firebase.firestore(); storage = firebase.storage();
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      if (CONFIG.appCheckSiteKey) {
+        appCheck = firebase.appCheck(); appCheck.activate(CONFIG.appCheckSiteKey, true);
+      }
+      auth.useDeviceLanguage();
+      auth.onAuthStateChanged(async user => {
+        state.user = user;
+        state.admin = false;
+        if (user) {
+          try { const token = await user.getIdTokenResult(true); state.admin = token.claims.admin === true; } catch {}
+          await ensureUserProfile();
+        }
+        await refreshFirebaseData();
+        renderAll();
+      });
+      await refreshFirebaseData();
+    } catch (error) {
+      console.error(error);
+      const banner = $('#connectionBanner');
+      banner.hidden = false;
+      banner.textContent = 'PaddockScan could not connect to Firebase. Nothing has been loaded or saved locally.';
+    }
+  }
+
+  async function ensureUserProfile() {
+    if (!db || !state.user) return;
+    const ref = db.collection('users').doc(state.user.uid);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set({ displayName: state.user.displayName || 'PaddockScan owner', email: state.user.email || '', role: 'user', createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+  }
+
+  async function refreshFirebaseData() {
+    if (!db) return;
+    try {
+      const settingsSnap = await db.collection('siteSettings').doc('public').get();
+      state.settings = { ...clone(defaults.settings), ...(settingsSnap.exists ? settingsSnap.data() : {}) };
+      const postsSnap = await db.collection('posts').where('published','==',true).limit(100).get();
+      state.posts = postsSnap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+      if (state.user) {
+        const profileSnap = await db.collection('users').doc(state.user.uid).get(); state.profile = profileSnap.exists ? profileSnap.data() : null;
+        const [mine, garageSnap] = await Promise.all([
+          db.collection('submissions').where('ownerUid','==',state.user.uid).limit(50).get(),
+          db.collection('users').doc(state.user.uid).collection('garage').limit(100).get()
+        ]);
+        state.submissions = mine.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+        state.cloudGarage = await Promise.all(garageSnap.docs.map(async d => {
+          const data = { id:d.id, ...d.data() };
+          try { data.result = data.resultJson ? JSON.parse(data.resultJson) : {}; } catch { data.result = {}; }
+          try {
+            const historySnap = await d.ref.collection('history').doc('current').get();
+            data.history = historySnap.exists ? historySnap.data() : null;
+            data.historyText = historyTextFrom(data.history);
+          } catch (historyError) {
+            console.warn('Saved vehicle history could not be loaded', historyError);
+            data.history = null;
+            data.historyText = '';
+          }
+          const imagePath = data.cutoutStoragePath || data.originalStoragePath;
+          if (imagePath) {
+            try { data.imageUrl = await storage.ref(imagePath).getDownloadURL(); }
+            catch { data.imageUrl = 'assets/car-placeholder.svg'; }
+          } else data.imageUrl = 'assets/car-placeholder.svg';
+          return data;
+        }));
+        state.cloudGarage.sort((a,b)=>asDate(b.updatedAt || b.createdAtIso)-asDate(a.updatedAt || a.createdAtIso));
+      } else { state.submissions = []; state.cloudGarage = []; }
+      if (state.admin) {
+        const [subs, reports, users] = await Promise.all([
+          db.collection('submissions').limit(100).get(), db.collection('reports').limit(100).get(), db.collection('users').limit(100).get()
+        ]);
+        state.submissions = subs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+        state.reports = reports.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+        state.users = users.docs.map(d=>({id:d.id,...d.data()}));
+      }
+    } catch (error) { console.warn('Firebase read failed', error); }
+  }
+
+  async function signIn() {
+    if (!auth || !window.firebase) {
+      toast('Sign-in is temporarily unavailable. Please check the Firebase connection.');
+      return;
+    }
+    const provider = new firebase.auth.GoogleAuthProvider(); provider.setCustomParameters({prompt:'select_account'});
+    try { await auth.signInWithPopup(provider); } catch (error) { if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') await auth.signInWithRedirect(provider); else throw error; }
+  }
+
+  async function signOut() { if (auth) await auth.signOut(); }
+
+  function applySettings() {
+    const s = state.settings;
+    document.documentElement.style.setProperty('--accent', s.accent || '#d6ae36');
+    $('#heroEyebrow').textContent = s.heroEyebrow; $('#heroTitle').textContent = s.heroTitle; $('#heroSubtitle').textContent = s.heroSubtitle;
+    $('#competitionTitle').textContent = s.competitionTitle; $('#playStoreButton').href = safeUrl(s.playStoreUrl) || '#';
+    const banner = $('#connectionBanner');
+    if (s.announcement) { banner.hidden = false; banner.textContent = s.announcement; }
+    else banner.hidden = true;
+    $('#submitAuthNotice').innerHTML = !s.submissionsOpen ? '<strong>Submissions are temporarily paused.</strong>' : state.user ? 'Signed in. Your entry will be saved privately for review.' : 'Sign in before sending a public submission.';
+  }
+
+  function featuredPost() { return state.posts.find(p=>p.featured) || state.posts[0] || null; }
+  function postCard(post) {
+    return `<article class="post-card" data-open-post="${escapeHtml(post.id)}"><div class="post-image plate-mask"><img src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}" loading="lazy"><span>${escapeHtml(post.category || 'Community')}</span></div><div class="post-copy"><p class="eyebrow">${escapeHtml(post.year || 'FEATURE')}</p><h3>${escapeHtml(post.title || post.vehicle)}</h3><p>${escapeHtml(post.summary || String(post.story||'').slice(0,150))}</p><div class="post-meta"><span>${ownerCreditHtml(post)}</span><span>${dateText(post.createdAt)}</span></div></div></article>`;
+  }
+
+  function renderPosts() {
+    const feature = featuredPost();
+    if (!feature) {
+      $('#featuredCard').innerHTML = '<div class="featured-copy"><p class="eyebrow">CAR OF THE MONTH</p><h3>No featured vehicle yet</h3><p>Approved community vehicles will appear here once published.</p></div>';
+      $('#homePostGrid').innerHTML = '';
+      $('#hubFeatured').innerHTML = '<p>No featured vehicle has been selected.</p>';
+      filterCommunity();
+      return;
+    }
+    $('#featuredCard').innerHTML = `<div class="featured-image plate-mask"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(feature.title || feature.vehicle)}"><span class="feature-badge">CURRENT WINNER</span></div><div class="featured-copy"><p class="eyebrow">${escapeHtml(feature.category || 'FEATURED')}</p><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${escapeHtml(feature.summary || feature.story || '')}</p><div class="feature-stats"><div><span>Owner credit</span><strong>${ownerCreditHtml(feature)}</strong></div><div><span>Location</span><strong>${escapeHtml(feature.location || 'United Kingdom')}</strong></div><div><span>Year</span><strong>${escapeHtml(feature.year || '—')}</strong></div></div><button class="button" data-open-post="${escapeHtml(feature.id)}">Read the story</button></div>`;
+    $('#homePostGrid').innerHTML = state.posts.filter(p=>p.id!==feature.id).slice(0,3).map(postCard).join('');
+    filterCommunity();
+    $('#hubFeatured').innerHTML = `<div class="vehicle-image-frame plate-mask"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt=""></div><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${ownerCreditHtml(feature)}</p>`;
+  }
+
+  function filterCommunity() {
+    const term = ($('#postSearch')?.value || '').trim().toLowerCase(); const category = $('#categoryFilter')?.value || 'all';
+    const items = state.posts.filter(p => (category==='all'||p.category===category) && (!term || [p.title,p.vehicle,p.ownerCredit,p.ownerName,p.category,p.story].join(' ').toLowerCase().includes(term)));
+    $('#communityPostGrid').innerHTML = items.map(postCard).join(''); $('#communityEmpty').hidden = !!items.length;
+  }
+
+  function historyTextFrom(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.trim();
+
+    const direct = [
+      value.historyText,
+      value.fullText,
+      value.text,
+      value.content,
+      value.generatedText
+    ].find(item => typeof item === 'string' && item.trim());
+
+    if (direct) return direct.trim();
+
+    if (value.sections && typeof value.sections === 'object') {
+      return Object.entries(value.sections)
+        .map(([heading, body]) => {
+          const cleanBody = typeof body === 'string'
+            ? body.trim()
+            : historyTextFrom(body);
+          if (!cleanBody) return '';
+          const cleanHeading = String(heading)
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/[_-]+/g, ' ')
+            .toUpperCase();
+          return `${cleanHeading}\n${cleanBody}`;
+        })
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
+    return '';
+  }
+
+  async function loadVehicleHistoryForSubmission(item) {
+    const embedded = historyTextFrom(
+      item.historyText ||
+      item.vehicleHistory ||
+      item.history
+    );
+
+    if (embedded) return embedded;
+    if (!db || !item.ownerUid) return '';
+
+    const scanId = item.garageScanId || item.scanId || item.vehicleId;
+    if (!scanId) return '';
+
+    try {
+      const snap = await db
+        .collection('users')
+        .doc(item.ownerUid)
+        .collection('garage')
+        .doc(scanId)
+        .collection('history')
+        .doc('current')
+        .get();
+
+      return snap.exists ? historyTextFrom(snap.data()) : '';
+    } catch (error) {
+      console.warn('Vehicle history could not be loaded', error);
+      return '';
+    }
+  }
+
+  function renderPostDetail(id) {
+    const post = state.posts.find(p=>p.id===id); if (!post) { location.hash='#community'; return; }
+    const link = safeUrl(post.website);
+    const story = String(post.story || '').trim();
+    const summary = String(post.summary || '').trim();
+    const history = historyTextFrom(post.historyText || post.vehicleHistory || post.history);
+    const showSummary = summary && summary !== story;
+
+    const storySection = story
+      ? `<section class="feature-section"><p class="eyebrow">OWNER'S STORY</p><div class="article-body">${escapeHtml(story).replace(/\n/g,'<br>')}</div></section>`
+      : '';
+
+    const historySection = history
+      ? `<section class="feature-section vehicle-history-section"><p class="eyebrow">PADDOCKSCAN VEHICLE HISTORY</p><div class="article-body">${escapeHtml(history).replace(/\n/g,'<br>')}</div><p class="history-disclaimer">This PaddockScan vehicle overview is prepared from available vehicle and visual information. Details should be independently verified.</p></section>`
+      : '';
+
+    $('#postDetail').innerHTML = `<div class="post-detail-image-wrap plate-mask"><img class="post-detail-image" src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}"></div><div class="post-detail-copy"><p class="eyebrow">${escapeHtml(post.category || 'COMMUNITY')}</p><h1>${escapeHtml(post.title || post.vehicle)}</h1><div class="detail-byline">Owner credit: ${ownerCreditHtml(post)} · ${dateText(post.createdAt)}${post.location?` · ${escapeHtml(post.location)}`:''}</div>${photographerCreditText(post)?`<div class="detail-byline photographer-byline">Photography: ${photographerCreditHtml(post)}</div>`:''}${showSummary?`<p class="lead">${escapeHtml(summary)}</p>`:''}${storySection}${historySection}<div class="detail-actions">${link?`<a class="button button-secondary" href="${escapeHtml(link)}" target="_blank" rel="ugc noopener">Owner link ↗</a>`:''}<button class="text-link" data-report-post="${escapeHtml(post.id)}">Report this post</button></div></div>`;
+  }
+
+  function submissionItem(item, admin=false) {
+    const img = item.imageUrls?.[0] || item.imageUrl || 'assets/car-placeholder.svg';
+    const actions = admin ? `<div class="submission-actions"><button class="button button-small button-secondary" data-review-submission="${item.id}">Review</button></div>` : '';
+    return `<article class="submission-item"><div class="vehicle-thumb plate-mask"><img src="${escapeHtml(img)}" alt=""></div><div class="submission-main"><span class="status-pill status-${escapeHtml(item.status||'draft')}">${escapeHtml((item.status||'draft').replaceAll('_',' '))}</span><h3>${escapeHtml(item.vehicle || 'Untitled vehicle')}</h3><p>${escapeHtml(item.ownerCredit || item.ownerName || '')} · ${dateText(item.createdAt)}</p></div>${actions}</article>`;
+  }
+
+  function cloudGarageItem(item) {
+    const data = vehicleDisplayData(item);
+    const confidence = data.confidence !== '' && data.confidence !== undefined
+      ? `${Math.round(Number(data.confidence) * 100)}%`
+      : '';
+    const rows = [
+      detailRow('Registration', data.registration),
+      detailRow('Make', data.make),
+      detailRow('Model', data.model),
+      detailRow('Generation', data.generation),
+      detailRow('Variant', data.variant),
+      detailRow('Model year', data.year),
+      detailRow('Estimated production years', data.yearRange),
+      detailRow('Body style', data.bodyStyle),
+      detailRow('Colour', data.colour),
+      detailRow('Fuel', data.fuel),
+      detailRow('Transmission', data.transmission),
+      detailRow('Drivetrain', data.drivetrain),
+      detailRow('Power', data.power ? `${data.power} bhp` : ''),
+      detailRow('Identification confidence', confidence),
+      detailRow('Information status', String(data.verification || '').replaceAll('_', ' ').toLowerCase())
+    ].filter(Boolean).join('');
+    const features = data.features.length
+      ? `<div class="vehicle-feature-list"><h4>IDENTIFYING FEATURES</h4><ul>${data.features.map(feature => `<li>${escapeHtml(feature)}</li>`).join('')}</ul></div>`
+      : '';
+    const history = data.history
+      ? `<section class="garage-history"><h4>PADDOCKSCAN VEHICLE HISTORY</h4><div>${escapeHtml(data.history).replace(/\n/g, '<br>')}</div><p class="history-disclaimer">This overview is loaded from the same saved vehicle record used by the app. Opening it on the website does not prepare a second version.</p></section>`
+      : `<section class="garage-history empty-history"><h4>PADDOCKSCAN VEHICLE HISTORY</h4><p>Open the information button for this vehicle in the app once. The saved history will then appear here automatically.</p></section>`;
+    return `<details class="garage-vehicle-card"><summary><div class="vehicle-thumb plate-mask"><img src="${escapeHtml(item.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(data.title)}"></div><div class="garage-vehicle-heading"><span class="status-pill status-approved">private app vehicle</span><h3>${escapeHtml(data.title)}</h3><p>${escapeHtml([data.registration, data.fuel, data.bodyStyle, data.year].filter(Boolean).join(' · ') || 'Synced from PaddockScan')}</p><small>${dateText(item.updatedAt || item.createdAtIso)}</small></div><span class="garage-chevron" aria-hidden="true">⌄</span></summary><div class="garage-dropdown"><section><h4>VEHICLE DETAILS</h4><div class="vehicle-detail-grid">${rows || '<p>No structured vehicle details are saved yet.</p>'}</div></section>${features}${history}<div class="garage-actions"><a class="button button-small" href="#submit" data-garage-submit="${escapeHtml(item.id)}">Add to The Paddock</a></div></div></details>`;
+  }
+
+  function renderGarage() {
+    const gate = $('#garageGate'), content = $('#garageContent');
+    if (!state.user) { gate.innerHTML = '<div class="panel"><h2>Sign in to open your Garage</h2><p>Your drafts and submission history appear here.</p><button class="button" data-auth>Sign in with Google</button></div>'; content.hidden=true; return; }
+    gate.innerHTML=''; content.hidden=false;
+    $('#profileName').textContent = state.profile?.displayName || state.user.displayName || 'PaddockScan owner'; $('#profileEmail').textContent = state.user.email || 'Signed-in account'; $('#profileAvatar').textContent = initials(state.profile?.displayName || state.user.displayName);
+    const mine = state.admin ? state.submissions.filter(s=>s.ownerUid===uid()) : state.submissions;
+    const cloudCount = state.cloudGarage?.length || 0;
+    $('#garageStats').innerHTML = [ ['App vehicles',cloudCount], ['Drafts',mine.filter(s=>s.status==='draft').length], ['Under review',mine.filter(s=>s.status==='pending').length], ['Published',mine.filter(s=>s.status==='approved').length] ].map(([l,n])=>`<div class="stat-card"><strong>${n}</strong><span>${l}</span></div>`).join('');
+    $('#cloudGarageList').innerHTML = cloudCount ? state.cloudGarage.map(cloudGarageItem).join('') : '<div class="empty-state"><h3>No synced app vehicles yet</h3><p>Sign into the Android app with this same Google account and save a scan to Garage. New saves upload automatically.</p></div>';
+    $('#mySubmissionList').innerHTML = mine.map(i=>submissionItem(i,false)).join('') || '<div class="empty-state"><h3>No community submissions yet</h3><p>Your website drafts will appear here.</p></div>';
+  }
+
+  function renderHub() {
+    const gate=$('#hubGate'), content=$('#hubContent'); $('#hubModeChip').textContent = 'FIREBASE LIVE';
+    $('#hubSignInButton').textContent = state.user ? 'Sign out' : 'Sign in';
+    if (!state.user) { gate.innerHTML='<div class="panel auth-gate-card"><h2>Owner Hub locked</h2><p>Sign in with the administrator account to manage the website.</p><button class="button" data-auth>Sign in</button></div>'; content.hidden=true; return; }
+    if (!state.admin) { gate.innerHTML='<div class="panel auth-gate-card"><h2>Administrator access required</h2><p>Your account is signed in, but it does not have the Firebase <code>admin</code> custom claim.</p></div>'; content.hidden=true; return; }
+    gate.innerHTML=''; content.hidden=false;
+    const pending=state.submissions.filter(s=>s.status==='pending').length;
+    $('#pendingBadge').textContent=pending; $('#dashboardStats').innerHTML=[['Pending',pending],['Published',state.posts.length],['Users',state.users.length||1],['Reports',state.reports.filter(r=>r.status!=='resolved').length]].map(([l,n])=>`<div class="stat-card"><strong>${n}</strong><span>${l}</span></div>`).join('');
+    $('#attentionList').innerHTML=state.submissions.filter(s=>s.status==='pending').slice(0,5).map(i=>submissionItem(i,true)).join('')||'<div class="empty-state"><p>Nothing needs attention.</p></div>';
+    renderAdminLists(); populateDesigner(); renderSettings();
+  }
+
+  function renderAdminLists() {
+    const filter=$('#submissionStatusFilter')?.value||'all'; const subs=state.submissions.filter(s=>filter==='all'||s.status===filter);
+    $('#adminSubmissionList').innerHTML=subs.map(i=>submissionItem(i,true)).join('')||'<div class="empty-state"><p>No matching submissions.</p></div>';
+    $('#adminPostList').innerHTML=state.posts.map(p=>`<article class="submission-item"><img src="${escapeHtml(p.imageUrl||'assets/car-placeholder.svg')}" alt=""><div class="submission-main"><span class="status-pill status-approved">published</span><h3>${escapeHtml(p.title||p.vehicle)}</h3><p>${ownerCreditHtml(p)} · ${dateText(p.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-edit-post="${p.id}">Edit</button><button class="button button-small button-secondary" data-feature-post="${p.id}">${p.featured?'Featured':'Feature'}</button><button class="button button-small danger-button" data-delete-post="${p.id}">Remove</button></div></article>`).join('');
+    $('#reportList').innerHTML=state.reports.map(r=>`<article class="submission-item"><div class="submission-main"><span class="status-pill">${escapeHtml(r.status||'open')}</span><h3>${escapeHtml(r.reason||'Content report')}</h3><p>${escapeHtml(r.details||'No details')} · ${dateText(r.createdAt)}</p></div><div class="submission-actions"><button class="button button-small button-secondary" data-resolve-report="${r.id}">Resolve</button></div></article>`).join('')||'<div class="empty-state"><p>No reports.</p></div>';
+    $('#userList').innerHTML=(state.users.length?state.users:[{id:uid(),displayName:state.profile?.displayName||state.user?.displayName,email:state.user?.email,role:'admin'}]).map(u=>`<article class="submission-item"><div class="account-avatar">${initials(u.displayName)}</div><div class="submission-main"><h3>${escapeHtml(u.displayName||'User')}</h3><p>${escapeHtml(u.email||'')} · ${escapeHtml(u.role||'user')}</p></div></article>`).join('');
+  }
+
+  function populateDesigner() {
+    const f=$('#designerForm'); if(!f)return; const s=state.settings;
+    ['heroEyebrow','heroTitle','heroSubtitle','competitionTitle','announcement','accent','playStoreUrl'].forEach(k=>{if(f.elements[k])f.elements[k].value=s[k]??''}); f.elements.submissionsOpen.value=String(s.submissionsOpen!==false);
+  }
+
+  function renderSettings() {
+    $('#connectionDetails').innerHTML = `<div class="setting-row"><span>Mode</span><strong>Firebase live</strong></div><div class="setting-row"><span>Domain</span><strong>${escapeHtml(CONFIG.domain||'paddockscan.com')}</strong></div><div class="setting-row"><span>Signed in</span><strong>${state.user?'Yes':'No'}</strong></div><div class="setting-row"><span>Administrator</span><strong>${state.admin?'Yes':'No'}</strong></div>`;
+    $('#currentUid').textContent = state.user?.uid || 'Sign in to reveal your UID';
+    $('#adminSetupText').textContent = 'Administrator access is controlled by the Firebase admin custom claim.';
+  }
+
+  function renderAccount() {
+    const btn=$('#accountButton'); $('.account-avatar',btn).textContent=initials(state.profile?.displayName||state.user?.displayName); $('.account-label',btn).textContent=state.user?(state.profile?.displayName||state.user.displayName||'Account').split(' ')[0]:'Sign in';
+    $('#accountDialogContent').innerHTML=state.user?`<p class="eyebrow">ACCOUNT</p><h2>${escapeHtml(state.profile?.displayName||state.user.displayName||'PaddockScan owner')}</h2><p>${escapeHtml(state.user.email||'')}</p><div class="stack-actions"><a class="button" href="#garage" onclick="document.getElementById('accountDialog').close()">Open My Garage</a>${state.admin?'<a class="button button-secondary" href="#hub" onclick="document.getElementById(\'accountDialog\').close()">Open Owner Hub</a>':''}<button class="button button-secondary" data-auth>Sign out</button></div>`:`<p class="eyebrow">PADDOCKSCAN ACCOUNT</p><h2>Sign in</h2><p>Use the same Google account as the PaddockScan Android app.</p><button class="button" data-auth>Continue with Google</button>`;
+  }
+
+  function renderAll() {
+    applySettings(); renderPosts(); renderGarage(); renderHub(); renderAccount();
+    $('#monthChip').textContent=new Intl.DateTimeFormat('en-GB',{month:'long',year:'numeric'}).format(new Date()).toUpperCase(); $('#copyrightYear').textContent=new Date().getFullYear();
+  }
+
+  function route() {
+    const raw=(location.hash||'#home').slice(1); const [routeName,param]=raw.split('/'); const valid=['home','community','post','submit','garage','about','legal','hub']; const name=valid.includes(routeName)?routeName:'home';
+    $$('.view').forEach(v=>v.classList.toggle('active',v.dataset.view===name)); $('#publicFooter').hidden=name==='hub';
+    if(name!=='hub'&&name!=='post')state.lastPublicRoute=name; if(name==='post')renderPostDetail(param); if(name==='legal')renderLegal(param||'privacy');
+    scrollTo({top:0,behavior:'smooth'}); $('#mainNav').classList.remove('open');
+  }
+
+  function renderLegal(type) {
+    const docs={
+      privacy:['Privacy Notice',`PaddockScan collects account details, profile information, vehicle submission data, uploaded photographs and moderation records when you choose to use community features. We use this information to operate accounts, review submissions, publish approved content, respond to reports and protect the service. Firebase and Google authentication providers process technical data required to provide these services. Public posts show only the information approved for publication; email addresses are not shown publicly. You may request access, correction or deletion by contacting ${CONFIG.contactEmail||'paddockscan@gmail.com'}.`],
+      terms:['Terms of Use','You must provide accurate information, use only photographs and material you own or are authorised to share, and avoid unlawful, abusive, misleading or privacy-invasive content. Submissions may be edited for formatting, rejected, unpublished or removed. You grant PaddockScan a non-exclusive licence to display and promote approved material while it remains published. Vehicle identifications, values and specifications are informational estimates and should be independently verified before purchasing, selling or repairing a vehicle.'],
+      community:['Community Rules','Be respectful. Submit genuine automotive content. Do not expose addresses, documents, precise locations or another person’s personal information. Do not upload copyrighted photographs without permission, unsafe links, spam, threats, hate, sexual content or illegal material. Registration plates may be hidden or replaced before publication. Use the report control where content raises a concern.'],
+      deletion:['Account and Data Deletion',`To request deletion of your PaddockScan community account, profile, private drafts or published submissions, email ${CONFIG.contactEmail||'paddockscan@gmail.com'} from the address linked to your account. Include your display name and identify the material to remove. Requests will be verified before deletion.`]
+    }; const doc=docs[type]||docs.privacy;
+    $('#legalContent').innerHTML=`<h1>${doc[0]}</h1><p>Last updated ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</p>${doc[1].split('\n').map(p=>`<p>${escapeHtml(p)}</p>`).join('')}`;
+  }
+
+  async function uploadFiles(files, submissionId, ownerUid) {
+    const urls=[];
+    for(let i=0;i<files.length;i++){
+      const protectedFile = await privacyMaskedFile(files[i]);
+      const ext=(protectedFile.name.split('.').pop()||'jpg').toLowerCase();
+      const ref=storage.ref(`community/${ownerUid}/${submissionId}/${i}-${Date.now()}.${ext}`);
+      await ref.put(protectedFile,{contentType:protectedFile.type});
+      urls.push(await ref.getDownloadURL());
+    }
+    return urls;
+  }
+
+  async function saveSubmission(status) {
+    const form=$('#submissionForm'); if(status==='pending'&&!form.reportValidity())return;
+    if(state.settings.submissionsOpen===false&&status==='pending'){toast('Submissions are paused.');return;}
+    const data=Object.fromEntries(new FormData(form).entries());
+    const credit=String(data.ownerCredit||'').trim(); const socialUrl=normaliseWebsiteUrl(data.ownerSocialUrl); const photographerCredit=String(data.photographerCredit||'').trim(); const photographerSocialUrl=normaliseWebsiteUrl(data.photographerSocialUrl); const item={ownerUid:uid(),ownerCredit:credit,ownerName:credit,ownerSocialUrl:socialUrl,website:socialUrl,photographerCredit,photographerSocialUrl,location:String(data.location||'').trim(),vehicle:String(data.vehicle||'').trim(),year:String(data.year||'').trim(),category:String(data.category||'Community'),story:String(data.story||'').trim(),summary:String(data.story||'').trim().slice(0,280),hidePlate:data.hidePlate==='on',consent:data.consent==='on',status,createdAt:nowIso(),updatedAt:nowIso()};
+    if(!item.vehicle){toast('Add the vehicle name first.');return;} if(!item.ownerCredit){toast('Add the public owner credit.');return;} if(status==='pending'&&!item.ownerSocialUrl){toast('Add the owner social or page link.');return;} if(item.photographerCredit && !item.photographerSocialUrl){toast('Add the photographer social/page link, or remove the photographer credit.');return;}
+    $('#submissionStatus').textContent='Saving…';
+    try{
+      if(!state.user){await signIn();return;}
+      if(!db || !storage) throw new Error('Firebase is not connected. Nothing has been saved.');
+      const ref=db.collection('submissions').doc();
+      item.imageUrls=await uploadFiles(state.selectedImages,ref.id,state.user.uid);
+      item.ownerEmail=state.user.email||'';
+      item.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+      item.updatedAt=item.createdAt;
+      await ref.set(item);
+      form.reset(); if (form.elements.ownerSocialUrl) form.elements.ownerSocialUrl.value='https://www.'; if (form.elements.photographerSocialUrl) form.elements.photographerSocialUrl.value='https://www.'; state.selectedImages=[]; renderImagePreviews(); $('#storyCount').textContent='0'; $('#submissionStatus').textContent=status==='draft'?'Draft saved in My Garage.':'Submitted for review.'; toast(status==='draft'?'Draft saved':'Submission sent'); await refreshFirebaseData(); renderAll();
+    } catch (error) {
+      console.error(error);
+
+      const message =
+        error?.code === 'storage/unauthorized'
+          ? 'Photo upload was blocked by Firebase Storage rules. Publish the Storage rules, then sign out and back in.'
+          : (error.message || 'Could not save submission.');
+
+      $('#submissionStatus').textContent = message;
+    }
+  }
+
+  function renderImagePreviews(){const grid=$('#imagePreviewGrid'); if(!state.selectedImages.length){grid.innerHTML='<div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div>';return;} grid.innerHTML=state.selectedImages.map((f,i)=>`<div class="image-preview"><img src="${URL.createObjectURL(f)}" alt="Selected photo ${i+1}"><button type="button" data-remove-image="${i}" aria-label="Remove">×</button></div>`).join('');}
+
+  function openReview(id){const item=state.submissions.find(s=>s.id===id);if(!item)return; const imgs=item.imageUrls?.length?item.imageUrls:[item.imageUrl||'assets/car-placeholder.svg']; $('#reviewContent').innerHTML=`<p class="eyebrow">SUBMISSION REVIEW</p><h2>${escapeHtml(item.vehicle)}</h2><div class="review-gallery">${imgs.map(u=>`<div class="review-image plate-mask"><img src="${escapeHtml(u)}" alt=""></div>`).join('')}</div><div class="review-meta"><div><span>Public owner credit</span><strong>${escapeHtml(item.ownerCredit || item.ownerName || '—')}</strong></div><div><span>Owner social/page link</span><strong>${ownerSocialUrl(item)?`<a href="${escapeHtml(ownerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Missing'}</strong></div><div><span>Photographer credit</span><strong>${escapeHtml(item.photographerCredit || 'Not supplied')}</strong></div><div><span>Photographer link</span><strong>${photographerSocialUrl(item)?`<a href="${escapeHtml(photographerSocialUrl(item))}" target="_blank" rel="noopener">Open link ↗</a>`:'Not supplied'}</strong></div><div><span>Location</span><strong>${escapeHtml(item.location||'—')}</strong></div><div><span>Year</span><strong>${escapeHtml(item.year||'—')}</strong></div><div><span>Category</span><strong>${escapeHtml(item.category||'—')}</strong></div></div><p class="review-story">${escapeHtml(item.story)}</p><div class="admin-action-bar"><button class="button" data-sub-action="approve" data-id="${id}">Approve and publish</button><button class="button button-secondary" data-sub-action="changes_requested" data-id="${id}">Request changes</button><button class="button danger-button" data-sub-action="rejected" data-id="${id}">Reject</button><button class="text-link danger-text" data-delete-submission="${id}">Delete submission</button></div>`; $('#reviewDialog').showModal();}
+
+  async function submissionAction(id, action) {
+    const item = state.submissions.find(submission => submission.id === id);
+    if (!item) return;
+
+    try {
+        await db.collection('submissions').doc(id).update({
+          status: action,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        if (action === 'approve') {
+          const historyText = await loadVehicleHistoryForSubmission(item);
+          const post = {
+            title: item.vehicle,
+            vehicle: item.vehicle,
+            ownerCredit: item.ownerCredit || item.ownerName || 'PaddockScan',
+            ownerName: item.ownerCredit || item.ownerName || 'PaddockScan',
+            ownerUid: item.ownerUid,
+            garageScanId: item.garageScanId || item.scanId || item.vehicleId || '',
+            location: item.location || '',
+            year: item.year || '',
+            category: item.category || 'Community',
+            summary: item.summary || String(item.story || '').slice(0, 280),
+            story: item.story || '',
+            historyText,
+            ownerSocialUrl: item.ownerSocialUrl || item.website || '',
+            website: item.ownerSocialUrl || item.website || '',
+            photographerCredit: item.photographerCredit || '',
+            photographerSocialUrl: item.photographerSocialUrl || '',
+            imageUrl: item.imageUrls?.[0] || item.imageUrl || 'assets/car-placeholder.svg',
+            published: true,
+            featured: false,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+
+          await db.collection('posts').doc(id).set(post);
+          await db.collection('submissions').doc(id).update({
+            status: 'approved',
+            historyIncluded: Boolean(historyText)
+          });
+        }
+
+      $('#reviewDialog').close();
+      await refreshFirebaseData();
+      renderAll();
+      toast(action === 'approve' ? 'Submission published' : 'Submission updated');
+    } catch (error) {
+      toast(error.message || 'Update failed');
+    }
+  }
+
+  async function saveSettings(event){event.preventDefault();const f=event.currentTarget;const next={heroEyebrow:f.heroEyebrow.value.trim(),heroTitle:f.heroTitle.value.trim(),heroSubtitle:f.heroSubtitle.value.trim(),competitionTitle:f.competitionTitle.value.trim(),announcement:f.announcement.value.trim(),accent:f.accent.value,playStoreUrl:safeUrl(f.playStoreUrl.value),submissionsOpen:f.submissionsOpen.value==='true'};try{if(!db)throw new Error('Firebase is not connected.');await db.collection('siteSettings').doc('public').set({...next,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});state.settings={...state.settings,...next};applySettings();$('#designerStatus').textContent='Homepage published.';toast('Homepage updated');}catch(e){$('#designerStatus').textContent=e.message||'Could not publish.';}}
+
+  async function publishEditorial(event){event.preventDefault();const f=event.currentTarget;const data=Object.fromEntries(new FormData(f).entries());const post={title:String(data.title).trim(),vehicle:String(data.title).trim(),ownerName:'PaddockScan',location:'Editorial',year:String(data.year||'Feature'),category:String(data.category||'PaddockScan editorial'),summary:String(data.summary).trim(),story:String(data.story).trim(),website:normaliseWebsiteUrl(data.website),published:true,featured:false,createdAt:nowIso()};try{if(!db||!state.user)throw new Error('Firebase sign-in is required.');const ref=db.collection('posts').doc();if(state.editorialImage){const u=(await uploadFiles([state.editorialImage],`editorial-${ref.id}`,state.user.uid))[0];post.imageUrl=u}else post.imageUrl='assets/car-placeholder.svg';post.createdAt=firebase.firestore.FieldValue.serverTimestamp();await ref.set(post);f.reset();if(f.elements.website)f.elements.website.value='https://www.';state.editorialImage=null;$('#editorialImagePreview img').src='assets/car-placeholder.svg';$('#editorialStatus').textContent='Post published.';await refreshFirebaseData();renderAll();toast('Editorial post published')}catch(e){$('#editorialStatus').textContent=e.message||'Publish failed'}}
+
+
+  function openPostEditor(id) {
+    const post = state.posts.find(item => item.id === id);
+    if (!post || !state.admin) return;
+
+    const form = $('#editPostForm');
+    form.elements.postId.value = post.id;
+    form.elements.title.value = post.title || post.vehicle || '';
+    form.elements.ownerCredit.value = post.ownerCredit || post.ownerName || '';
+    form.elements.location.value = post.location || '';
+    form.elements.year.value = post.year || '';
+    form.elements.category.value = post.category || 'Community';
+    form.elements.summary.value = post.summary || '';
+    form.elements.story.value = post.story || '';
+    form.elements.historyText.value = historyTextFrom(post.historyText || '');
+    form.elements.ownerSocialUrl.value = post.ownerSocialUrl || post.website || 'https://www.';
+    form.elements.photographerCredit.value = post.photographerCredit || '';
+    form.elements.photographerSocialUrl.value = post.photographerSocialUrl || 'https://www.';
+    form.elements.imageUrl.value = post.imageUrl || '';
+    $('#editPostDialog').showModal();
+  }
+
+  async function savePostEdit(event) {
+    event.preventDefault();
+    if (!state.admin) {
+      toast('Administrator access required');
+      return;
+    }
+
+    const form = event.currentTarget;
+    const id = form.elements.postId.value;
+    const update = {
+      title: form.elements.title.value.trim(),
+      vehicle: form.elements.title.value.trim(),
+      ownerCredit: form.elements.ownerCredit.value.trim(),
+      ownerName: form.elements.ownerCredit.value.trim(),
+      location: form.elements.location.value.trim(),
+      year: form.elements.year.value.trim(),
+      category: form.elements.category.value.trim() || 'Community',
+      summary: form.elements.summary.value.trim(),
+      story: form.elements.story.value.trim(),
+      historyText: form.elements.historyText.value.trim(),
+      ownerSocialUrl: normaliseWebsiteUrl(form.elements.ownerSocialUrl.value),
+      website: normaliseWebsiteUrl(form.elements.ownerSocialUrl.value),
+      photographerCredit: form.elements.photographerCredit.value.trim(),
+      photographerSocialUrl: normaliseWebsiteUrl(form.elements.photographerSocialUrl.value),
+      imageUrl: form.elements.imageUrl.value.trim() || 'assets/car-placeholder.svg',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    try {
+      await db.collection('posts').doc(id).update(update);
+      $('#editPostDialog').close();
+      await refreshFirebaseData();
+      renderAll();
+      toast('Public post updated');
+    } catch (error) {
+      console.error(error);
+      toast(error.message || 'Could not update post');
+    }
+  }
+
+  async function deleteSubmission(id) {
+    if (!state.admin || !confirm('Permanently delete this submission?')) return;
+    try {
+      await db.collection('submissions').doc(id).delete();
+      $('#reviewDialog').close();
+      await refreshFirebaseData();
+      renderAll();
+      toast('Submission deleted');
+    } catch (error) {
+      console.error(error);
+      toast(error.message || 'Could not delete submission');
+    }
+  }
+
+  async function postAction(id,action){try{if(!db)throw new Error('Firebase is not connected.');if(action==='feature'){const batch=db.batch();state.posts.forEach(p=>batch.update(db.collection('posts').doc(p.id),{featured:p.id===id}));await batch.commit()}else if(action==='delete'){if(!confirm('Remove this public post?'))return;await db.collection('posts').doc(id).delete()}await refreshFirebaseData();renderAll()}catch(e){toast(e.message||'Action failed')}}
+
+  async function submitReport(event){event.preventDefault();if(!db||!state.user){toast('Sign in and reconnect to send a report.');return;}const d=Object.fromEntries(new FormData(event.currentTarget).entries());const report={postId:d.postId,reason:d.reason,details:String(d.details||''),reporterUid:uid(),status:'open',createdAt:firebase.firestore.FieldValue.serverTimestamp()};await db.collection('reports').add(report);event.currentTarget.reset();$('#reportDialog').close();toast('Report sent for review');renderAll()}
+
+  async function saveProfile(event){event.preventDefault();if(!db||!state.user){toast('Sign in and reconnect to save your profile.');return;}const data=Object.fromEntries(new FormData(event.currentTarget).entries());const profile={displayName:String(data.displayName).trim(),location:String(data.location||'').trim(),bio:String(data.bio||'').trim(),website:normaliseWebsiteUrl(data.website),email:state.user.email||'',updatedAt:firebase.firestore.FieldValue.serverTimestamp()};await db.collection('users').doc(state.user.uid).set(profile,{merge:true});state.profile={...(state.profile||{}),...profile};$('#profileDialog').close();renderAll();toast('Profile saved')}
+
+  function exportBackup(){const blob=new Blob([JSON.stringify({version:1,exportedAt:nowIso(),settings:state.settings,posts:state.posts,submissions:state.submissions,reports:state.reports,users:state.users,profile:state.profile},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`paddockscan-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+  function bindEvents(){
+    window.addEventListener('hashchange',route); window.addEventListener('online',()=>toast('Connection restored')); window.addEventListener('offline',()=>toast('You are offline'));
+    window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').hidden=false});
+    $('#installButton').addEventListener('click',async()=>{if(state.deferredInstall){state.deferredInstall.prompt();await state.deferredInstall.userChoice;state.deferredInstall=null;$('#installButton').hidden=true}else toast('Open Chrome menu and choose Add to Home screen')});
+    $('#menuButton').addEventListener('click',()=>{const open=$('#mainNav').classList.toggle('open');$('#menuButton').setAttribute('aria-expanded',String(open))});
+    $('#accountButton').addEventListener('click',()=>$('#accountDialog').showModal()); $('#hubSignInButton').addEventListener('click',()=>state.user?signOut():signIn());
+    $('#refreshGarageButton').addEventListener('click',async()=>{ if(!state.user)return signIn(); $('#refreshGarageButton').disabled=true; try{await refreshFirebaseData();renderAll();toast('Garage refreshed')}finally{$('#refreshGarageButton').disabled=false} });
+    $('#postSearch').addEventListener('input',filterCommunity);$('#categoryFilter').addEventListener('change',filterCommunity);$('#submissionStatusFilter').addEventListener('change',renderAdminLists);
+    $('#chooseImagesButton').addEventListener('click',()=>$('#carImages').click());$('#uploadZone').addEventListener('click',e=>{if(e.target.id==='uploadZone'||e.target.classList.contains('upload-placeholder'))$('#carImages').click()});
+    $('#carImages').addEventListener('change',e=>{const incoming=[...e.target.files];state.selectedImages=[...state.selectedImages,...incoming].slice(0,MAX_IMAGES);renderImagePreviews();e.target.value=''});
+    $('#submissionForm textarea[name=story]').addEventListener('input',e=>$('#storyCount').textContent=e.target.value.length);$('#submissionForm').addEventListener('submit',e=>{e.preventDefault();saveSubmission('pending')});$('#saveDraftButton').addEventListener('click',()=>saveSubmission('draft'));
+    $('#designerForm').addEventListener('submit',saveSettings);$('#previewHomeButton').addEventListener('click',()=>location.hash='#home');$('#editorialForm').addEventListener('submit',publishEditorial);$('#chooseEditorialImage').addEventListener('click',()=>$('#editorialImage').click());$('#editorialImage').addEventListener('change',e=>{state.editorialImage=e.target.files?.[0]||null;if(state.editorialImage)$('#editorialImagePreview img').src=URL.createObjectURL(state.editorialImage)});
+    $('#reportForm').addEventListener('submit',submitReport);$('#editPostForm').addEventListener('submit',savePostEdit);$('#profileForm').addEventListener('submit',saveProfile);$('#editProfileButton').addEventListener('click',()=>{const f=$('#profileForm');f.displayName.value=state.profile?.displayName||state.user?.displayName||'';f.location.value=state.profile?.location||'';f.bio.value=state.profile?.bio||'';f.website.value=state.profile?.website||'https://www.';$('#profileDialog').showModal()});
+$('#copyUidButton').addEventListener('click',async()=>{await navigator.clipboard.writeText(state.user?.uid||'');toast('UID copied')});
+    $$('#hubNav button').forEach(b=>b.addEventListener('click',()=>{$$('#hubNav button').forEach(x=>x.classList.toggle('active',x===b));$$('.hub-panel').forEach(p=>p.classList.toggle('active',p.dataset.hubPanel===b.dataset.hubTab));$('#hubTitle').textContent=b.textContent.replace(/\d+/g,'').trim()}));
+    document.addEventListener('click',async e=>{
+      const authBtn=e.target.closest('[data-auth]');if(authBtn){e.preventDefault();$('#accountDialog')?.close();state.user?await signOut():await signIn();return}
+      const ownerLink=e.target.closest('[data-owner-credit-link]');if(ownerLink){e.stopPropagation();return}
+      const open=e.target.closest('[data-open-post]');if(open){location.hash=`#post/${open.dataset.openPost}`;return}
+      const back=e.target.closest('[data-back]');if(back){location.hash=`#${state.lastPublicRoute||'community'}`;return}
+      const rem=e.target.closest('[data-remove-image]');if(rem){state.selectedImages.splice(Number(rem.dataset.removeImage),1);renderImagePreviews();return}
+      const review=e.target.closest('[data-review-submission]');if(review){openReview(review.dataset.reviewSubmission);return}
+      const sub=e.target.closest('[data-sub-action]');if(sub){await submissionAction(sub.dataset.id,sub.dataset.subAction);return}
+      const edit=e.target.closest('[data-edit-post]');if(edit){openPostEditor(edit.dataset.editPost);return}
+      const feat=e.target.closest('[data-feature-post]');if(feat){await postAction(feat.dataset.featurePost,'feature');return}
+      const del=e.target.closest('[data-delete-post]');if(del){await postAction(del.dataset.deletePost,'delete');return}
+      const deleteSub=e.target.closest('[data-delete-submission]');if(deleteSub){await deleteSubmission(deleteSub.dataset.deleteSubmission);return}
+      const report=e.target.closest('[data-report-post]');if(report){$('#reportForm').postId.value=report.dataset.reportPost;$('#reportDialog').showModal();return}
+      const resolve=e.target.closest('[data-resolve-report]');if(resolve){const id=resolve.dataset.resolveReport;if(!db){toast('Firebase is not connected.');return;}await db.collection('reports').doc(id).update({status:'resolved'});renderAll();return}
+      const close=e.target.closest('[data-close-dialog]');if(close){document.getElementById(close.dataset.closeDialog).close();return}
+      const go=e.target.closest('[data-go-hub]');if(go){$(`#hubNav button[data-hub-tab="${go.dataset.goHub}"]`)?.click();return}
+    });
+  }
+
+  async function init(){bindEvents();renderAll();route();await initFirebase();renderAll();if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(console.warn)}
+  init();
+})();

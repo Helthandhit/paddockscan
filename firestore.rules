@@ -1,50 +1,120 @@
-# Firebase production setup
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-Use the same Firebase project as the PaddockScan Android app.
+    function owner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
 
-## 1. Register the website
+    function admin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
 
-1. Open Firebase Console → Project settings.
-2. Under **Your apps**, add a Web app.
-3. Name it `PaddockScan Website`.
-4. Copy the displayed configuration values into `site-config.js`.
-5. Add `paddockscan.com`, `www.paddockscan.com` and your GitHub Pages hostname to Authentication → Settings → Authorised domains.
+    function validGarageDocument(uid) {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion', 'ownerUid', 'scanId', 'registration', 'title',
+        'resultJson', 'originalStoragePath', 'cutoutStoragePath',
+        'createdAtIso', 'updatedAt'
+      ])
+      && request.resource.data.ownerUid == uid
+      && request.resource.data.scanId is string
+      && request.resource.data.scanId.size() >= 8
+      && request.resource.data.scanId.size() <= 100
+      && request.resource.data.resultJson is string
+      && request.resource.data.resultJson.size() <= 500000
+      && request.resource.data.originalStoragePath is string
+      && request.resource.data.originalStoragePath.matches(
+        'users/' + uid + '/garage/' + request.resource.data.scanId + '/original.jpg'
+      );
+    }
 
-The Firebase Web API key is designed to be present in browser code. Security comes from Authentication, App Check and the included Firestore/Storage rules.
+    match /siteSettings/public {
+      allow read: if true;
+      allow write: if admin();
+    }
 
-## 2. Authentication
+    match /posts/{postId} {
+      allow read: if resource.data.published == true || admin();
+      allow create, update, delete: if admin();
+    }
 
-Enable **Authentication → Sign-in method → Google**. Select the project support email and save.
+    match /submissions/{submissionId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status in ['draft', 'pending'];
 
-## 3. Firestore and Storage
+      allow read: if admin()
+        || (signedIn() && resource.data.ownerUid == request.auth.uid);
 
-Create Firestore in production mode and enable Cloud Storage. Deploy the supplied `firestore.rules` and `storage.rules` using Firebase CLI, or paste them into the corresponding Rules editors in Firebase Console.
+      allow update: if admin()
+        || (
+          signedIn()
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.status in [
+            'draft', 'pending', 'changes_requested'
+          ]
+        );
 
-Cloud Storage may require the Firebase project to use the Blaze billing plan. Set budget alerts and upload limits before launch.
+      allow delete: if admin()
+        || (
+          signedIn()
+          && resource.data.ownerUid == request.auth.uid
+          && resource.data.status == 'draft'
+        );
+    }
 
-## 4. Give your account Owner Hub access
+    match /users/{uid} {
+      allow read: if owner(uid) || admin();
 
-The website checks for a Firebase Authentication custom claim named `admin` with value `true`.
+      allow create: if owner(uid)
+        && request.resource.data.role == 'user';
 
-Use a trusted Firebase Admin environment, such as Cloud Shell, to run the following once. Replace `YOUR_UID` with the UID shown in Owner Hub → Settings after signing in.
+      allow update: if admin()
+        || (
+          owner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName', 'email', 'location', 'bio', 'website', 'updatedAt'
+          ])
+        );
 
-```js
-const admin = require('firebase-admin');
-admin.initializeApp();
-admin.auth().setCustomUserClaims('YOUR_UID', { admin: true })
-  .then(() => console.log('PaddockScan admin enabled'));
-```
+      allow delete: if admin() || owner(uid);
 
-Sign out and back in after setting the claim.
+      match /garage/{scanId} {
+        allow read, delete: if owner(uid) || admin();
+        allow create, update: if (owner(uid) || admin())
+          && scanId == request.resource.data.scanId
+          && validGarageDocument(uid);
 
-## 5. Optional App Check
+        match /history/{historyId} {
+          allow read: if owner(uid) || admin();
+          allow write: if false;
+        }
+      }
 
-Create a reCAPTCHA Enterprise or reCAPTCHA v3 web provider in Firebase App Check, then paste its site key into `appCheckSiteKey` in `site-config.js`. Test Authentication and uploads before enforcing App Check.
+      match /settings/{document=**} {
+        allow read, create, update, delete: if owner(uid);
+      }
+    }
 
-## 6. Android app hand-off
+    match /reports/{reportId} {
+      allow create: if signedIn();
+      allow read, update, delete: if admin();
+    }
 
-Add a button to the result screen that opens:
+    match /scanReservations/{reservationId} {
+      allow read, write: if false;
+    }
 
-`https://paddockscan.com/#submit`
+    match /adminAudit/{auditId} {
+      allow read, write: if false;
+    }
 
-Later, pass non-sensitive draft fields in a Firestore draft owned by the signed-in UID rather than placing vehicle or user data in the URL.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
