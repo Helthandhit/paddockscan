@@ -1,14 +1,226 @@
-{
-  "name": "PaddockScan Community & Owner Hub",
-  "short_name": "PaddockScan",
-  "start_url": "./#home",
-  "scope": "./",
-  "display": "standalone",
-  "background_color": "#07090b",
-  "theme_color": "#07090b",
-  "description": "PaddockScan community, vehicle submissions and Owner Hub.",
-  "icons": [
-    {"src":"assets/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"assets/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
-  ]
-}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07090b">
+  <meta name="description" content="PaddockScan Community — scan it, save it and share the story.">
+  <meta name="robots" content="index,follow">
+  <title>PaddockScan Community</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <div id="connectionBanner" class="connection-banner" hidden></div><div id="loadingBanner" class="loading-banner" role="status" aria-live="polite" hidden></div>
+
+  <header class="site-header">
+    <button id="menuButton" class="icon-button menu-button" aria-label="Open navigation" aria-expanded="false">☰</button>
+    <a class="brand" href="#home" aria-label="PaddockScan home">
+      <img src="assets/paddockscan-logo.png" alt="">
+      <span><strong>Paddock<span>Scan</span></strong><small>COMMUNITY</small></span>
+    </a>
+    <nav id="mainNav" class="main-nav" aria-label="Main navigation">
+      <a href="#home" data-route-link>Home</a>
+      <a href="#community" data-route-link>Community</a>
+      <a href="#submit" data-route-link>Submit</a>
+      <a href="#garage" data-route-link>My Garage</a>
+      <a href="#about" data-route-link>About</a>
+    </nav>
+    <div class="header-actions">
+      <button id="installButton" class="icon-button" aria-label="Install PaddockScan website" hidden>⇩</button>
+      <button id="accountButton" class="account-button"><span class="account-avatar">PS</span><span class="account-label">Sign in</span></button>
+    </div>
+  </header>
+
+  <main id="content">
+    <section class="view active" data-view="home">
+      <section class="section home-spotlight" id="featuredSection">
+        <div class="section-heading"><div><p class="eyebrow">CURRENT COMMUNITY WINNER</p><h2 id="competitionTitle">Car of the Month</h2></div><span id="monthChip" class="chip"></span></div>
+        <article id="featuredCard" class="featured-card"></article>
+      </section>
+
+      <section class="hero home-intro">
+        <div class="hero-copy">
+          <p class="eyebrow" id="heroEyebrow">THE PADDOCKSCAN COMMUNITY</p>
+          <h1 id="heroTitle">Every car has a story worth scanning.</h1>
+          <p id="heroSubtitle">Share your vehicle, discover standout builds and enter the PaddockScan Car of the Month.</p>
+          <div class="hero-actions">
+            <a class="button" href="#submit">Submit your car</a>
+            <a class="button button-secondary" href="#community">View all community cars</a>
+          </div>
+          <div class="trust-row"><span>Owner profiles</span><span>Moderated posts</span><span>App-ready sharing</span></div>
+        </div>
+        <div class="scan-stage" aria-label="Vehicle scanner illustration">
+          <div class="scan-grid"></div><div class="scan-line"></div>
+          <img src="assets/car-placeholder.svg" alt="Stylised car">
+          <div class="scan-corner top-left"></div><div class="scan-corner top-right"></div><div class="scan-corner bottom-left"></div><div class="scan-corner bottom-right"></div>
+          <span class="scan-status"><i></i> VEHICLE READY</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading"><div><p class="eyebrow">LATEST FROM OWNERS</p><h2>Inside the paddock</h2></div><a href="#community" class="text-link">View all →</a></div>
+        <div id="homePostGrid" class="post-grid"></div>
+      </section>
+
+      <section class="section app-promo">
+        <div class="phone-shell" aria-hidden="true">
+          <div class="phone-speaker"></div><div class="phone-screen"><img src="assets/paddockscan-logo.png" alt=""><small>SCAN COMPLETE</small><strong>Save to Garage</strong><span>or share with the community</span><button>OPEN COMMUNITY</button></div>
+        </div>
+        <div class="app-copy"><p class="eyebrow">ONE PADDOCKSCAN ACCOUNT</p><h2>Scan in the app. Finish the story here.</h2><p>A vehicle result can open the website submission form with the recognised details already filled in. The owner checks what will be public before sending it for approval.</p><div class="step-list"><div><b>1</b><span><strong>Scan</strong><small>Identify and save the vehicle.</small></span></div><div><b>2</b><span><strong>Share</strong><small>Open a private website draft.</small></span></div><div><b>3</b><span><strong>Publish</strong><small>You approve it in the Hub.</small></span></div></div><a id="playStoreButton" class="button" href="https://play.google.com/apps/testing/com.healthandhit.paddockscan" target="_blank" rel="noopener">Get PaddockScan for Android</a></div>
+      </section>
+
+      <section class="section cta-banner"><div><p class="eyebrow">YOUR CAR. YOUR STORY.</p><h2>Think it belongs in the spotlight?</h2><p>Entries are checked before appearing publicly.</p></div><a class="button" href="#submit">Enter Car of the Month</a></section>
+    </section>
+
+    <section class="view" data-view="community">
+      <div class="page-hero"><p class="eyebrow">COMMUNITY CARS</p><h1>Explore the paddock</h1><p>Owner stories, special cars, everyday heroes and unusual finds.</p></div>
+      <section class="section compact-top">
+        <div class="toolbar">
+          <label class="search-field"><span>⌕</span><input id="postSearch" type="search" placeholder="Search car, owner or category"></label>
+          <select id="categoryFilter" aria-label="Filter by category"><option value="all">All categories</option><option>Performance</option><option>Modified</option><option>Classic</option><option>Modern classic</option><option>Everyday hero</option><option>Rare find</option><option>PaddockScan editorial</option></select>
+        </div>
+        <div id="communityPostGrid" class="post-grid"></div>
+        <div id="communityEmpty" class="empty-state" hidden><h3>No matching cars yet</h3><p>Try another search or submit the first one.</p></div>
+      </section>
+    </section>
+
+    <section class="view" data-view="post">
+      <section class="section post-detail-wrap"><button class="back-button" data-back>← Back</button><article id="postDetail" class="post-detail"></article></section>
+    </section>
+
+    <section class="view" data-view="submit">
+      <div class="page-hero"><p class="eyebrow">COMMUNITY ENTRY</p><h1>Submit your car</h1><p>Create a private draft. Nothing becomes public until it is reviewed.</p></div>
+      <section class="section compact-top two-column-layout">
+        <form id="submissionForm" class="panel form-panel">
+          <div id="submitAuthNotice" class="notice"></div>
+          <div class="upload-zone" id="uploadZone">
+            <input id="carImages" name="carImages" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+            <div id="imagePreviewGrid" class="image-preview-grid"><div class="upload-placeholder"><span>＋</span><strong>Add up to 6 photos</strong><small>JPG, PNG or WebP. 8 MB each.</small></div></div>
+            <button id="chooseImagesButton" class="button button-secondary" type="button">Choose photos</button>
+          </div>
+          <div class="form-grid">
+            <label><span>Public owner credit *</span><input name="ownerCredit" required maxlength="80" autocomplete="off" placeholder="@yourhandle or business/page name"></label>
+            <label><span>Broad location</span><input name="location" maxlength="60" placeholder="South Wales"></label>
+            <label class="wide"><span>Vehicle *</span><input name="vehicle" required maxlength="110" placeholder="2018 Ford Mustang GT"></label>
+            <label><span>Model year</span><input name="year" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="2018"></label>
+            <label><span>Category *</span><select name="category" required><option>Performance</option><option>Modified</option><option>Classic</option><option>Modern classic</option><option>Everyday hero</option><option>Rare find</option><option>Supercar</option></select></label>
+            <label class="wide"><span>Owner social/page link *</span><input name="ownerSocialUrl" required type="text" inputmode="url" autocomplete="url" maxlength="250" value="https://www." aria-label="Owner social or page link"><small>This public link must match the owner credit above, for example Instagram, Facebook, YouTube or a business website.</small></label>
+            <label><span>Photographer credit</span><input name="photographerCredit" maxlength="80" autocomplete="off" placeholder="@photographer or studio name"></label>
+            <label><span>Photographer social/page link</span><input name="photographerSocialUrl" type="text" inputmode="url" autocomplete="url" maxlength="250" value="https://www." aria-label="Photographer social or page link"><small>Optional. Add this only when a photographer or studio should be credited.</small></label>
+            <label class="wide"><span>Vehicle story *</span><textarea name="story" required maxlength="1500" rows="7" placeholder="What makes it special? Tell us about its history, modifications, memories or why you chose it."></textarea><small class="field-count"><span id="storyCount">0</span>/1500</small></label>
+            <label class="wide check-row"><input name="hidePlate" type="checkbox" checked><span>Hide or replace the registration plate before publishing.</span></label>
+            <label class="wide check-row"><input name="consent" type="checkbox" required><span>I own these photos or have permission to use them, and allow PaddockScan to display the approved submission.</span></label>
+          </div>
+          <div class="form-actions"><button class="button button-secondary" type="button" id="saveDraftButton">Save draft</button><button class="button" type="submit">Send for review</button></div>
+          <p id="submissionStatus" class="form-status" role="status"></p>
+        </form>
+        <aside class="panel guidance-panel"><p class="eyebrow">BEFORE YOU SEND</p><h2>Make it feature-ready</h2><ul class="guidance-list"><li><b>01</b><span><strong>Use a clear main photo</strong><small>Landscape images look best in the community grid.</small></span></li><li><b>02</b><span><strong>Keep private details out</strong><small>Avoid addresses, paperwork and precise location information.</small></span></li><li><b>03</b><span><strong>Tell the real story</strong><small>Ownership memories matter more than a list of specifications.</small></span></li><li><b>04</b><span><strong>Check external links</strong><small>Only add a website or social page you are happy to show publicly.</small></span></li></ul></aside>
+      </section>
+    </section>
+
+    <section class="view" data-view="garage">
+      <div class="page-hero"><p class="eyebrow">YOUR PADDOCKSCAN ACCOUNT</p><h1>My Garage</h1><p>Manage private drafts and follow the status of your submissions.</p></div>
+      <section class="section compact-top"><div id="garageGate" class="auth-gate"></div><div id="garageContent" hidden><div class="profile-strip"><div id="profileAvatar" class="large-avatar">PS</div><div><h2 id="profileName">PaddockScan user</h2><p id="profileEmail"></p></div><button id="editProfileButton" class="button button-secondary button-small">Edit profile</button></div><div id="garageStats" class="stat-cards"></div><div class="section-heading small"><div><p class="eyebrow">SYNCED FROM THE APP</p><h2>Your vehicle Garage</h2><p>Private scans saved in the PaddockScan Android app appear here when you use the same Google account.</p></div><button id="refreshGarageButton" class="button button-secondary button-small" type="button">Refresh</button></div><div id="cloudGarageList" class="submission-list"></div><div class="section-heading small"><div><p class="eyebrow">COMMUNITY DRAFTS</p><h2>Your entries</h2></div><a href="#submit" class="button button-small">New submission</a></div><div id="mySubmissionList" class="submission-list"></div></div></section>
+    </section>
+
+    <section class="view" data-view="about">
+      <div class="page-hero"><p class="eyebrow">ABOUT PADDOCKSCAN</p><h1>Vehicle intelligence with a human story.</h1><p>PaddockScan combines vehicle identification, useful information and a community built around genuine owners.</p></div>
+      <section class="section content-section"><div class="content-card"><h2>What the community is for</h2><p>The website gives owners a controlled way to turn a PaddockScan result into a public vehicle feature. It is not an unmoderated social network: submissions are reviewed, private Garage items stay private, and users choose exactly what they publish.</p><h2>How Car of the Month works</h2><p>Approved community vehicles can be selected by the PaddockScan administrator. Selection is editorial and does not imply a valuation, mechanical inspection or verification of every owner statement.</p><h2>Contact</h2><p>Email <a href="mailto:paddockscan@gmail.com">paddockscan@gmail.com</a> for website problems, content removal or app feedback.</p></div></section>
+    </section>
+
+    <section class="view" data-view="legal">
+      <section class="section legal-layout"><aside class="legal-nav"><a href="#legal/privacy">Privacy</a><a href="#legal/terms">Terms</a><a href="#legal/community">Community Rules</a><a href="#legal/deletion">Account deletion</a></aside><article id="legalContent" class="content-card legal-content"></article></section>
+    </section>
+
+    <section class="view hub-view" data-view="hub">
+      <div class="hub-shell">
+        <aside class="hub-sidebar">
+          <div class="hub-brand"><img src="assets/paddockscan-logo.png" alt=""><span><strong>PaddockScan</strong><small>WEBSITE HUB</small></span></div>
+          <nav id="hubNav" aria-label="Owner Hub sections">
+            <button data-hub-tab="dashboard" class="active"><span class="hub-nav-icon">⌂</span><span class="hub-nav-label">Dashboard</span></button>
+            <button data-hub-tab="submissions"><span class="hub-nav-icon">▣</span><span class="hub-nav-label">Submissions</span><span id="pendingBadge" class="nav-badge">0</span></button>
+            <button data-hub-tab="posts"><span class="hub-nav-icon">◆</span><span class="hub-nav-label">Posts</span></button>
+            <button data-hub-tab="designer"><span class="hub-nav-icon">✦</span><span class="hub-nav-label">Homepage</span></button>
+            <button data-hub-tab="editorial"><span class="hub-nav-icon">✎</span><span class="hub-nav-label">Create</span></button>
+            <button data-hub-tab="reports"><span class="hub-nav-icon">⚑</span><span class="hub-nav-label">Reports</span></button>
+            <button data-hub-tab="users"><span class="hub-nav-icon">●</span><span class="hub-nav-label">Users</span></button>
+            <button data-hub-tab="settings"><span class="hub-nav-icon">⚙</span><span class="hub-nav-label">Settings</span></button>
+          </nav>
+          <a class="hub-public-link" href="#home">← Public website</a>
+        </aside>
+        <div class="hub-main">
+          <header class="hub-header"><div><p class="eyebrow">OWNER CONTROL</p><h1 id="hubTitle">Dashboard</h1></div><div class="hub-header-actions"><span id="hubModeChip" class="chip"></span><button id="hubSignInButton" class="button button-small button-secondary">Sign in</button></div></header>
+          <div id="hubGate" class="auth-gate"></div>
+          <div id="hubContent" hidden>
+            <section class="hub-panel active" data-hub-panel="dashboard"><div id="dashboardStats" class="stat-cards"></div><div class="hub-grid"><div class="panel"><div class="panel-heading"><h2>Needs attention</h2><button class="text-link" data-go-hub="submissions">Open queue</button></div><div id="attentionList" class="compact-list"></div></div><div class="panel"><div class="panel-heading"><h2>Current spotlight</h2><button class="text-link" data-go-hub="posts">Change</button></div><div id="hubFeatured" class="mini-feature"></div></div></div></section>
+
+            <section class="hub-panel" data-hub-panel="submissions"><div class="panel"><div class="panel-heading"><div><h2>Submission queue</h2><p>Review private entries before creating public posts.</p></div><select id="submissionStatusFilter"><option value="all">All statuses</option><option value="pending">Pending</option><option value="changes_requested">Changes requested</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div><div id="adminSubmissionList" class="submission-list"></div></div></section>
+
+            <section class="hub-panel" data-hub-panel="posts"><div class="panel"><div class="panel-heading"><div><h2>Published posts</h2><p>Feature, edit or remove public content.</p></div></div><div id="adminPostList" class="submission-list"></div></div></section>
+
+            <section class="hub-panel" data-hub-panel="designer"><form id="designerForm" class="panel"><div class="panel-heading"><div><h2>Homepage designer</h2><p>Changes publish immediately after you save.</p></div><button type="button" id="previewHomeButton" class="button button-small button-secondary">Preview</button></div><div class="form-grid"><label class="wide"><span>Hero eyebrow</span><input name="heroEyebrow" maxlength="70"></label><label class="wide"><span>Main headline</span><input name="heroTitle" maxlength="120"></label><label class="wide"><span>Hero description</span><textarea name="heroSubtitle" rows="4" maxlength="280"></textarea></label><label><span>Competition title</span><input name="competitionTitle" maxlength="70"></label><label><span>Submissions</span><select name="submissionsOpen"><option value="true">Open</option><option value="false">Paused</option></select></label><label class="wide"><span>Announcement banner</span><input name="announcement" maxlength="180" placeholder="Leave empty to hide"></label><label><span>Primary accent</span><input name="accent" type="color" value="#d6ae36"></label><label><span>Play Store URL</span><input name="playStoreUrl" type="url"></label></div><div class="form-actions"><button class="button" type="submit">Publish homepage</button></div><p id="designerStatus" class="form-status"></p></form></section>
+
+            <section class="hub-panel" data-hub-panel="editorial"><form id="editorialForm" class="panel"><div class="panel-heading"><div><h2>Create a PaddockScan post</h2><p>Publish an editorial feature without a user submission.</p></div></div><div class="upload-zone compact"><input id="editorialImage" type="file" accept="image/jpeg,image/png,image/webp" hidden><div id="editorialImagePreview" class="editorial-image-preview"><img src="assets/car-placeholder.svg" alt="Editorial image preview"></div><button id="chooseEditorialImage" class="button button-secondary" type="button">Choose image</button></div><div class="form-grid"><label class="wide"><span>Title *</span><input name="title" required maxlength="120"></label><label><span>Vehicle/year label</span><input name="year" maxlength="30" placeholder="2026 feature"></label><label><span>Category</span><input name="category" value="PaddockScan editorial" maxlength="60"></label><label class="wide"><span>Summary *</span><textarea name="summary" required rows="3" maxlength="320"></textarea></label><label class="wide"><span>Full article *</span><textarea name="story" required rows="12" maxlength="6000"></textarea></label><label class="wide"><span>External link</span><input name="website" type="text" inputmode="url" autocomplete="url" value="https://www." aria-label="External link"></label></div><div class="form-actions"><button class="button" type="submit">Publish post</button></div><p id="editorialStatus" class="form-status"></p></form></section>
+
+            <section class="hub-panel" data-hub-panel="reports"><div class="panel"><div class="panel-heading"><div><h2>Content reports</h2><p>Review user concerns and record the outcome.</p></div></div><div id="reportList" class="submission-list"></div></div></section>
+            <section class="hub-panel" data-hub-panel="users"><div class="panel"><div class="panel-heading"><div><h2>Community users</h2><p>Public profile information and activity.</p></div></div><div id="userList" class="submission-list"></div></div></section>
+            <section class="hub-panel" data-hub-panel="settings"><div class="hub-grid"><div class="panel"><h2>Connection status</h2><div id="connectionDetails" class="settings-list"></div></div></div><div class="panel"><h2>Administrator setup</h2><p id="adminSetupText"></p><div class="copy-row"><code id="currentUid">Sign in to reveal your UID</code><button id="copyUidButton" class="button button-small button-secondary">Copy UID</button></div></div></section>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" id="publicFooter">
+    <div class="footer-top"><a class="footer-brand" href="#home"><img src="assets/paddockscan-logo.png" alt=""><span><strong>PaddockScan</strong><small>Scan it. Save it. Share it.</small></span></a><div class="footer-links"><a href="#about">About</a><a href="#legal/privacy">Privacy</a><a href="#legal/terms">Terms</a><a href="#legal/community">Community Rules</a><a href="#hub">Owner Hub</a></div><div class="footer-social"><a href="https://www.instagram.com/paddock_scan/" target="_blank" rel="noopener">Instagram</a><a href="https://www.facebook.com/profile.php?id=61592043293986" target="_blank" rel="noopener">Facebook</a><a href="https://www.youtube.com/@Paddockscan" target="_blank" rel="noopener">YouTube</a></div></div>
+    <div class="footer-bottom"><span>© <span id="copyrightYear"></span> PaddockScan</span><span>Community posts are moderated before publication.</span></div>
+  </footer>
+
+  <dialog id="accountDialog" class="dialog"><form method="dialog" class="dialog-card"><button class="dialog-close" value="cancel" aria-label="Close">×</button><div id="accountDialogContent"></div></form></dialog>
+  <dialog id="profileDialog" class="dialog"><form id="profileForm" class="dialog-card"><button class="dialog-close" type="button" data-close-dialog="profileDialog">×</button><p class="eyebrow">PUBLIC PROFILE</p><h2>Edit profile</h2><div class="form-grid"><label class="wide"><span>Display name *</span><input name="displayName" required maxlength="60"></label><label class="wide"><span>Broad location</span><input name="location" maxlength="60"></label><label class="wide"><span>Short biography</span><textarea name="bio" maxlength="300" rows="4"></textarea></label><label class="wide"><span>Website/social link</span><input name="website" type="text" inputmode="url" autocomplete="url" maxlength="250" value="https://www." aria-label="Website or social link"></label></div><div class="form-actions"><button class="button button-secondary" type="button" data-close-dialog="profileDialog">Cancel</button><button class="button" type="submit">Save profile</button></div></form></dialog>
+  <dialog id="reviewDialog" class="dialog wide-dialog"><div class="dialog-card"><button class="dialog-close" type="button" data-close-dialog="reviewDialog">×</button><div id="reviewContent"></div></div></dialog>
+  <dialog id="reportDialog" class="dialog"><form id="reportForm" class="dialog-card"><button class="dialog-close" type="button" data-close-dialog="reportDialog">×</button><p class="eyebrow">REPORT CONTENT</p><h2>Tell us what is wrong</h2><input type="hidden" name="postId"><label><span>Reason</span><select name="reason"><option>Personal information</option><option>Copyright concern</option><option>Misleading information</option><option>Abusive or inappropriate content</option><option>Spam or unsafe link</option><option>Other</option></select></label><label><span>Details</span><textarea name="details" maxlength="800" rows="5"></textarea></label><div class="form-actions"><button class="button button-secondary" type="button" data-close-dialog="reportDialog">Cancel</button><button class="button" type="submit">Send report</button></div></form></dialog>
+
+
+  <dialog id="editPostDialog" class="dialog wide-dialog">
+    <form id="editPostForm" class="dialog-card">
+      <button class="dialog-close" type="button" data-close-dialog="editPostDialog">×</button>
+      <p class="eyebrow">OWNER CONTROL</p>
+      <h2>Edit public post</h2>
+      <input type="hidden" name="postId">
+      <div class="form-grid">
+        <label class="wide"><span>Vehicle/title</span><input name="title" required maxlength="120"></label>
+        <label><span>Public owner credit</span><input name="ownerCredit" required maxlength="80" placeholder="@handle or page name"></label>
+        <label><span>Location</span><input name="location" maxlength="80"></label>
+        <label><span>Year</span><input name="year" maxlength="20"></label>
+        <label><span>Category</span><input name="category" maxlength="60"></label>
+        <label class="wide"><span>Short summary</span><textarea name="summary" rows="3" maxlength="500"></textarea></label>
+        <label class="wide"><span>Owner story</span><textarea name="story" rows="7" maxlength="5000"></textarea></label>
+        <label class="wide"><span>PaddockScan vehicle history</span><textarea name="historyText" rows="10" maxlength="15000"></textarea></label>
+        <label class="wide"><span>Owner social/page link</span><input name="ownerSocialUrl" required type="text" inputmode="url" value="https://www."></label>
+        <label><span>Photographer credit</span><input name="photographerCredit" maxlength="80" placeholder="@photographer or studio"></label>
+        <label><span>Photographer social/page link</span><input name="photographerSocialUrl" type="text" inputmode="url" value="https://www."></label>
+        <label class="wide"><span>Main image URL</span><input name="imageUrl" type="url"></label>
+      </div>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-close-dialog="editPostDialog">Cancel</button>
+        <button class="button" type="submit">Save public post</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-check-compat.js"></script>
+  <script src="site-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

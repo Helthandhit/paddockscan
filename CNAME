@@ -31,12 +31,6 @@
     selectedImages: [], editorialImage: null, deferredInstall: null, lastPublicRoute: 'home', loading: false, loadingLabel: '', lastRefreshAt: 0
   };
 
-
-  const plateEditor = {
-    queue: [], file: null, image: null, sourceCanvas: null, sourceCtx: null,
-    drawing: false, moving: false, start: null, current: null, mask: null, moveOffset: null
-  };
-
   const nowIso = () => new Date().toISOString();
   const asDate = value => {
     if (!value) return new Date(0);
@@ -145,8 +139,228 @@
   }
 
   async function privacyMaskedFile(file) {
-    // Photos are now edited interactively before entering selectedImages.
-    return file;
+    if (!file || !String(file.type || '').startsWith('image/')) return file;
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    // Conservative lower-centre privacy cover where front/rear registration plates normally appear.
+    const width = canvas.width * 0.54;
+    const height = Math.max(34, canvas.height * 0.105);
+    const x = (canvas.width - width) / 2;
+    const y = canvas.height * 0.63;
+    const radius = Math.max(8, height * 0.18);
+    ctx.fillStyle = '#0a0b0c';
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fill();
+    ctx.strokeStyle = '#d6ae36';
+    ctx.lineWidth = Math.max(2, canvas.width * 0.003);
+    ctx.stroke();
+    ctx.fillStyle = '#f3d16a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${Math.max(12, height * 0.27)}px system-ui, sans-serif`;
+    ctx.fillText('PLATE HIDDEN', canvas.width / 2, y + height / 2);
+
+    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.92));
+    if (!blob) return file;
+    const extension = type === 'image/png' ? 'png' : 'jpg';
+    const base = String(file.name || 'vehicle').replace(/\.[^.]+$/, '');
+    return new File([blob], `${base}-plate-hidden.${extension}`, { type, lastModified: Date.now() });
+  }
+
+  const slug = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+  const uid = () => state.user?.uid || 'anonymous';
+
+  function toast(message) {
+    const el = $('#toast'); if (!el) return;
+    el.textContent = message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+
+  function setLoading(active, label = '') {
+    state.loading = active;
+    state.loadingLabel = label;
+    const banner = $('#loadingBanner');
+    if (banner) {
+      banner.hidden = !active;
+      banner.innerHTML = active ? `<span class="loading-spinner" aria-hidden="true"></span><span>${escapeHtml(label || 'Loading PaddockScan…')}</span>` : '';
+    }
+    const accountButton = $('#accountButton');
+    if (accountButton) accountButton.disabled = active;
+  }
+
+  function friendlyFirebaseError(error, fallback = 'PaddockScan could not complete that request.') {
+    const code = String(error?.code || '');
+    if (code.includes('permission-denied') || code.includes('unauthorized')) return 'Firebase blocked this action. Check the published Firestore and Storage rules, then sign out and back in.';
+    if (code.includes('unavailable') || code.includes('network')) return 'PaddockScan cannot reach Firebase. Check your internet connection and try again.';
+    if (code.includes('failed-precondition')) return 'Firebase needs an index for this query. Open the Firebase error link in the browser console and create the suggested index.';
+    if (code.includes('auth/')) return 'Google sign-in could not be completed. Please try again.';
+    return error?.message || fallback;
+  }
+
+  async function initFirebase() {
+    if (!firebaseReady || !window.firebase) {
+      const banner = $('#connectionBanner');
+      banner.hidden = false;
+      banner.textContent = 'PaddockScan could not connect to Firebase. Live accounts and submissions are temporarily unavailable.';
+      return;
+    }
+    try {
+      setLoading(true, 'Connecting securely to PaddockScan…');
+      app = firebase.initializeApp(CONFIG.firebase);
+      auth = firebase.auth(); db = firebase.firestore(); storage = firebase.storage();
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      if (CONFIG.appCheckSiteKey) {
+        appCheck = firebase.appCheck(); appCheck.activate(CONFIG.appCheckSiteKey, true);
+      }
+      auth.useDeviceLanguage();
+      auth.onAuthStateChanged(async user => {
+        setLoading(true, user ? 'Restoring your account and Garage…' : 'Loading PaddockScan…');
+        state.user = user;
+        state.admin = false;
+        if (user) {
+          try { const token = await user.getIdTokenResult(true); state.admin = token.claims.admin === true; } catch {}
+          await ensureUserProfile();
+        }
+        await refreshFirebaseData();
+        renderAll();
+        setLoading(false);
+      });
+      await refreshFirebaseData(true);
+    } catch (error) {
+      console.error(error);
+      const banner = $('#connectionBanner');
+      banner.hidden = false;
+      banner.textContent = friendlyFirebaseError(error, 'PaddockScan could not connect to Firebase. Nothing has been loaded or saved locally.');
+      setLoading(false);
+    }
+  }
+
+  async function ensureUserProfile() {
+    if (!db || !state.user) return;
+    const ref = db.collection('users').doc(state.user.uid);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set({ displayName: state.user.displayName || 'PaddockScan owner', email: state.user.email || '', role: 'user', createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+  }
+
+  async function refreshFirebaseData(force = false) {
+    if (!db) return;
+    if (!force && Date.now() - state.lastRefreshAt < 15000) return;
+    try {
+      setLoading(true, state.user ? 'Restoring your Garage and submissions…' : 'Loading community vehicles…');
+      const settingsSnap = await db.collection('siteSettings').doc('public').get();
+      state.settings = { ...clone(defaults.settings), ...(settingsSnap.exists ? settingsSnap.data() : {}) };
+      const postsSnap = await db.collection('posts').where('published','==',true).limit(100).get();
+      state.posts = postsSnap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+      if (state.user) {
+        const profileSnap = await db.collection('users').doc(state.user.uid).get(); state.profile = profileSnap.exists ? profileSnap.data() : null;
+        const [mine, garageSnap] = await Promise.all([
+          db.collection('submissions').where('ownerUid','==',state.user.uid).limit(50).get(),
+          db.collection('users').doc(state.user.uid).collection('garage').limit(100).get()
+        ]);
+        state.submissions = mine.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+        state.cloudGarage = await Promise.all(garageSnap.docs.map(async d => {
+          const data = { id:d.id, ...d.data() };
+          try { data.result = data.resultJson ? JSON.parse(data.resultJson) : {}; } catch { data.result = {}; }
+          try {
+            const historySnap = await d.ref.collection('history').doc('current').get();
+            data.history = historySnap.exists ? historySnap.data() : null;
+            data.historyText = historyTextFrom(data.history);
+          } catch (historyError) {
+            console.warn('Saved vehicle history could not be loaded', historyError);
+            data.history = null;
+            data.historyText = '';
+          }
+          const imagePath = data.cutoutStoragePath || data.originalStoragePath;
+          if (imagePath) {
+            try { data.imageUrl = await storage.ref(imagePath).getDownloadURL(); }
+            catch { data.imageUrl = 'assets/car-placeholder.svg'; }
+          } else data.imageUrl = 'assets/car-placeholder.svg';
+          return data;
+        }));
+        state.cloudGarage.sort((a,b)=>asDate(b.updatedAt || b.createdAtIso)-asDate(a.updatedAt || a.createdAtIso));
+      } else { state.submissions = []; state.cloudGarage = []; }
+      if (state.admin) {
+        const [subs, reports, users] = await Promise.all([
+          db.collection('submissions').limit(100).get(), db.collection('reports').limit(100).get(), db.collection('users').limit(100).get()
+        ]);
+        state.submissions = subs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+        state.reports = reports.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt));
+        state.users = users.docs.map(d=>({id:d.id,...d.data()}));
+      }
+      state.lastRefreshAt = Date.now();
+    } catch (error) {
+      console.warn('Firebase read failed', error);
+      toast(friendlyFirebaseError(error, 'Could not refresh PaddockScan data.'));
+    } finally { setLoading(false); }
+  }
+
+  async function signIn() {
+    if (!auth || !window.firebase) {
+      toast('Sign-in is temporarily unavailable. Please check the Firebase connection.');
+      return;
+    }
+    const provider = new firebase.auth.GoogleAuthProvider(); provider.setCustomParameters({prompt:'select_account'});
+    setLoading(true, 'Opening secure Google sign-in…');
+    try { await auth.signInWithPopup(provider); } catch (error) { if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') await auth.signInWithRedirect(provider); else { toast(friendlyFirebaseError(error)); throw error; } } finally { setLoading(false); }
+  }
+
+  async function signOut() { if (auth) await auth.signOut(); }
+
+  function applySettings() {
+    const s = state.settings;
+    document.documentElement.style.setProperty('--accent', s.accent || '#d6ae36');
+    $('#heroEyebrow').textContent = s.heroEyebrow; $('#heroTitle').textContent = s.heroTitle; $('#heroSubtitle').textContent = s.heroSubtitle;
+    $('#competitionTitle').textContent = s.competitionTitle; $('#playStoreButton').href = safeUrl(s.playStoreUrl) || '#';
+    const banner = $('#connectionBanner');
+    if (s.announcement) { banner.hidden = false; banner.textContent = s.announcement; }
+    else banner.hidden = true;
+    $('#submitAuthNotice').innerHTML = !s.submissionsOpen ? '<strong>Submissions are temporarily paused.</strong>' : state.user ? 'Signed in. Your entry will be saved privately for review.' : 'Sign in before sending a public submission.';
+  }
+
+  function featuredPost() { return state.posts.find(p=>p.featured) || state.posts[0] || null; }
+  function postCard(post) {
+    return `<article class="post-card" data-open-post="${escapeHtml(post.id)}"><div class="post-image plate-mask"><img src="${escapeHtml(post.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(post.title || post.vehicle)}" loading="lazy"><span>${escapeHtml(post.category || 'Community')}</span></div><div class="post-copy"><p class="eyebrow">${escapeHtml(post.year || 'FEATURE')}</p><h3>${escapeHtml(post.title || post.vehicle)}</h3><p>${escapeHtml(post.summary || String(post.story||'').slice(0,150))}</p><div class="post-meta"><span>${ownerCreditHtml(post)}</span><span>${dateText(post.createdAt)}</span></div></div></article>`;
+  }
+
+  function renderPosts() {
+    const feature = featuredPost();
+    if (!feature) {
+      $('#featuredCard').innerHTML = '<div class="featured-copy"><p class="eyebrow">CAR OF THE MONTH</p><h3>No featured vehicle yet</h3><p>Approved community vehicles will appear here once published.</p></div>';
+      $('#homePostGrid').innerHTML = '';
+      $('#hubFeatured').innerHTML = '<p>No featured vehicle has been selected.</p>';
+      filterCommunity();
+      return;
+    }
+    $('#featuredCard').innerHTML = `<div class="featured-image plate-mask"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt="${escapeHtml(feature.title || feature.vehicle)}"><span class="feature-badge">CURRENT WINNER</span></div><div class="featured-copy"><p class="eyebrow">${escapeHtml(feature.category || 'FEATURED')}</p><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${escapeHtml(feature.summary || feature.story || '')}</p><div class="feature-stats"><div><span>Owner credit</span><strong>${ownerCreditHtml(feature)}</strong></div><div><span>Location</span><strong>${escapeHtml(feature.location || 'United Kingdom')}</strong></div><div><span>Year</span><strong>${escapeHtml(feature.year || '—')}</strong></div></div><button class="button" data-open-post="${escapeHtml(feature.id)}">Read the story</button></div>`;
+    $('#homePostGrid').innerHTML = state.posts.filter(p=>p.id!==feature.id).slice(0,3).map(postCard).join('');
+    filterCommunity();
+    $('#hubFeatured').innerHTML = `<div class="vehicle-image-frame plate-mask"><img src="${escapeHtml(feature.imageUrl || 'assets/car-placeholder.svg')}" alt=""></div><h3>${escapeHtml(feature.title || feature.vehicle)}</h3><p>${ownerCreditHtml(feature)}</p>`;
+  }
+
+  function filterCommunity() {
+    const term = ($('#postSearch')?.value || '').trim().toLowerCase(); const category = $('#categoryFilter')?.value || 'all';
+    const items = state.posts.filter(p => (category==='all'||p.category===category) && (!term || [p.title,p.vehicle,p.ownerCredit,p.ownerName,p.category,p.story].join(' ').toLowerCase().includes(term)));
+    $('#communityPostGrid').innerHTML = items.map(postCard).join(''); $('#communityEmpty').hidden = !!items.length;
   }
 
   function historyTextFrom(value) {
@@ -337,148 +551,6 @@
       deletion:['Account and Data Deletion',`To request deletion of your PaddockScan community account, profile, private drafts or published submissions, email ${CONFIG.contactEmail||'paddockscan@gmail.com'} from the address linked to your account. Include your display name and identify the material to remove. Requests will be verified before deletion.`]
     }; const doc=docs[type]||docs.privacy;
     $('#legalContent').innerHTML=`<h1>${doc[0]}</h1><p>Last updated ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</p>${doc[1].split('\n').map(p=>`<p>${escapeHtml(p)}</p>`).join('')}`;
-  }
-
-  function plateEditorPoint(event) {
-    const canvas = $('#plateEditorCanvas');
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (event.clientX - rect.left) * canvas.width / rect.width,
-      y: (event.clientY - rect.top) * canvas.height / rect.height
-    };
-  }
-
-  function roundedRectPath(ctx, x, y, width, height, radius) {
-    const r = Math.min(radius, width / 2, height / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + width, y, x + width, y + height, r);
-    ctx.arcTo(x + width, y + height, x, y + height, r);
-    ctx.arcTo(x, y + height, x, y, r);
-    ctx.arcTo(x, y, x + width, y, r);
-    ctx.closePath();
-  }
-
-  function plateMaskGeometry() {
-    const mask = plateEditor.mask;
-    if (!mask) return null;
-    const padding = mask.length * (Number($('#platePadding').value) / 100);
-    return {
-      cx: mask.cx,
-      cy: mask.cy,
-      angle: mask.angle,
-      width: mask.length + padding * 2,
-      height: Math.max(22, mask.length * (Number($('#plateHeight').value) / 100))
-    };
-  }
-
-  function renderPlateEditor(showGuides = true) {
-    const canvas = $('#plateEditorCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (!plateEditor.sourceCanvas) return;
-    ctx.drawImage(plateEditor.sourceCanvas, 0, 0);
-    const g = plateMaskGeometry();
-    if (g) {
-      ctx.save();
-      ctx.translate(g.cx, g.cy);
-      ctx.rotate(g.angle);
-      const x = -g.width / 2, y = -g.height / 2;
-      const radius = Math.min(12, g.height * .18);
-      const style = $('#plateStyle').value;
-      if (style === 'blur') {
-        const temp = document.createElement('canvas');
-        temp.width = canvas.width; temp.height = canvas.height;
-        const tctx = temp.getContext('2d');
-        tctx.filter = `blur(${Number($('#plateBlur').value)}px)`;
-        tctx.drawImage(plateEditor.sourceCanvas, 0, 0);
-        ctx.save();
-        roundedRectPath(ctx, x, y, g.width, g.height, radius);
-        ctx.clip();
-        ctx.rotate(-g.angle); ctx.translate(-g.cx, -g.cy);
-        ctx.drawImage(temp, 0, 0);
-        ctx.restore();
-      } else if (style === 'black') {
-        ctx.fillStyle = '#080808';
-        roundedRectPath(ctx, x, y, g.width, g.height, radius); ctx.fill();
-      } else {
-        ctx.fillStyle = '#f4f1e7';
-        roundedRectPath(ctx, x, y, g.width, g.height, radius); ctx.fill();
-        ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(2, g.height * .035); ctx.stroke();
-        ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        let fontSize = Math.max(11, g.height * .34);
-        ctx.font = `900 ${fontSize}px Arial Narrow, Impact, sans-serif`;
-        while (ctx.measureText('PADDOCKSCAN').width > g.width * .88 && fontSize > 8) {
-          fontSize -= 1; ctx.font = `900 ${fontSize}px Arial Narrow, Impact, sans-serif`;
-        }
-        ctx.fillText('PADDOCKSCAN', 0, 0);
-      }
-      if (showGuides) {
-        ctx.strokeStyle = '#d6ae36'; ctx.lineWidth = Math.max(2, canvas.width / 700);
-        ctx.setLineDash([10, 7]); roundedRectPath(ctx, x, y, g.width, g.height, radius); ctx.stroke(); ctx.setLineDash([]);
-      }
-      ctx.restore();
-    }
-    if (plateEditor.drawing && plateEditor.start && plateEditor.current) {
-      ctx.save(); ctx.strokeStyle = '#d6ae36'; ctx.lineWidth = Math.max(4, canvas.width / 300); ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(plateEditor.start.x, plateEditor.start.y); ctx.lineTo(plateEditor.current.x, plateEditor.current.y); ctx.stroke(); ctx.restore();
-    }
-    $('#applyPlateEdit').disabled = !plateEditor.mask && !$('#noPlateVisible').checked;
-    $('#plateEditorInstruction').textContent = plateEditor.mask
-      ? 'Plate cover added. Drag it to reposition, or redraw it.'
-      : ($('#noPlateVisible').checked ? 'No visible registration confirmed.' : 'Drag from one end of the numberplate to the other.');
-  }
-
-  function pointInsidePlateMask(point) {
-    const g = plateMaskGeometry(); if (!g) return false;
-    const dx = point.x - g.cx, dy = point.y - g.cy;
-    const c = Math.cos(-g.angle), s = Math.sin(-g.angle);
-    const x = dx * c - dy * s, y = dx * s + dy * c;
-    return Math.abs(x) <= g.width / 2 && Math.abs(y) <= g.height / 2;
-  }
-
-  async function openNextPlateEditor() {
-    if (!plateEditor.queue.length) { $('#plateEditorDialog').close(); return; }
-    const file = plateEditor.queue.shift();
-    plateEditor.file = file; plateEditor.mask = null; plateEditor.drawing = false; plateEditor.moving = false;
-    $('#noPlateVisible').checked = false;
-    const dataUrl = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
-    const image = await new Promise((resolve, reject) => { const img=new Image(); img.onload=()=>resolve(img); img.onerror=reject; img.src=dataUrl; });
-    const maxDimension = 4096;
-    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
-    const canvas = $('#plateEditorCanvas');
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    plateEditor.sourceCanvas = document.createElement('canvas');
-    plateEditor.sourceCanvas.width=canvas.width; plateEditor.sourceCanvas.height=canvas.height;
-    plateEditor.sourceCtx=plateEditor.sourceCanvas.getContext('2d');
-    plateEditor.sourceCtx.drawImage(image,0,0,canvas.width,canvas.height);
-    $('#plateEditorFileCount').textContent = `${state.selectedImages.length + 1} of ${Math.min(MAX_IMAGES, state.selectedImages.length + plateEditor.queue.length + 1)}`;
-    if (!$('#plateEditorDialog').open) $('#plateEditorDialog').showModal();
-    renderPlateEditor();
-  }
-
-  function beginPlateEditing(files) {
-    const room = Math.max(0, MAX_IMAGES - state.selectedImages.length);
-    plateEditor.queue = [...files].slice(0, room);
-    if (!plateEditor.queue.length) return;
-    openNextPlateEditor().catch(error => { console.error(error); toast('Could not open that photograph.'); });
-  }
-
-  async function commitPlateEdit() {
-    if (!plateEditor.file) return;
-    const noPlate = $('#noPlateVisible').checked;
-    if (!plateEditor.mask && !noPlate) return;
-    renderPlateEditor(false);
-    const canvas = $('#plateEditorCanvas');
-    const originalType = plateEditor.file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, originalType, .94));
-    if (!blob) { toast('Could not save the edited photograph.'); return; }
-    const base = String(plateEditor.file.name || 'vehicle').replace(/\.[^.]+$/, '');
-    const ext = originalType === 'image/png' ? 'png' : 'jpg';
-    state.selectedImages.push(new File([blob], `${base}-${noPlate?'checked':'paddockscan-plate'}.${ext}`, {type: originalType, lastModified: Date.now()}));
-    renderImagePreviews();
-    await openNextPlateEditor();
   }
 
   async function uploadFiles(files, submissionId, ownerUid) {
@@ -697,17 +769,7 @@
     $('#refreshGarageButton').addEventListener('click',async()=>{ if(!state.user)return signIn(); $('#refreshGarageButton').disabled=true; try{await refreshFirebaseData(true);renderAll();toast('Garage refreshed')}finally{$('#refreshGarageButton').disabled=false} });
     $('#postSearch').addEventListener('input',filterCommunity);$('#categoryFilter').addEventListener('change',filterCommunity);$('#submissionStatusFilter').addEventListener('change',renderAdminLists);
     $('#chooseImagesButton').addEventListener('click',()=>$('#carImages').click());$('#uploadZone').addEventListener('click',e=>{if(e.target.id==='uploadZone'||e.target.classList.contains('upload-placeholder'))$('#carImages').click()});
-    $('#carImages').addEventListener('change',e=>{const incoming=[...e.target.files];beginPlateEditing(incoming);e.target.value=''});
-    $('#plateEditorCanvas').addEventListener('pointerdown',e=>{const p=plateEditorPoint(e);$('#plateEditorCanvas').setPointerCapture(e.pointerId);if(plateEditor.mask&&pointInsidePlateMask(p)){plateEditor.moving=true;plateEditor.moveOffset={x:p.x-plateEditor.mask.cx,y:p.y-plateEditor.mask.cy};}else{plateEditor.drawing=true;plateEditor.start=p;plateEditor.current=p;$('#noPlateVisible').checked=false;}renderPlateEditor();});
-    $('#plateEditorCanvas').addEventListener('pointermove',e=>{const p=plateEditorPoint(e);if(plateEditor.drawing){plateEditor.current=p;renderPlateEditor();}else if(plateEditor.moving&&plateEditor.mask){plateEditor.mask.cx=p.x-plateEditor.moveOffset.x;plateEditor.mask.cy=p.y-plateEditor.moveOffset.y;renderPlateEditor();}});
-    const finishPlatePointer=e=>{const p=plateEditorPoint(e);if(plateEditor.drawing&&plateEditor.start){const dx=p.x-plateEditor.start.x,dy=p.y-plateEditor.start.y,length=Math.hypot(dx,dy);plateEditor.drawing=false;if(length>Math.max(35,$('#plateEditorCanvas').width*.025)){plateEditor.mask={cx:(plateEditor.start.x+p.x)/2,cy:(plateEditor.start.y+p.y)/2,length,angle:Math.atan2(dy,dx)};}else toast('Drag across the full width of the plate.');plateEditor.start=null;plateEditor.current=null;}plateEditor.moving=false;renderPlateEditor();};
-    $('#plateEditorCanvas').addEventListener('pointerup',finishPlatePointer);$('#plateEditorCanvas').addEventListener('pointercancel',()=>{plateEditor.drawing=false;plateEditor.moving=false;renderPlateEditor();});
-    ['plateStyle','plateHeight','platePadding','plateBlur'].forEach(id=>$('#'+id).addEventListener('input',renderPlateEditor));
-    $('#noPlateVisible').addEventListener('change',()=>{if($('#noPlateVisible').checked)plateEditor.mask=null;renderPlateEditor();});
-    $('#redrawPlate').addEventListener('click',()=>{plateEditor.mask=null;$('#noPlateVisible').checked=false;renderPlateEditor();});
-    $('#applyPlateEdit').addEventListener('click',commitPlateEdit);
-    $('#skipPlatePhoto').addEventListener('click',()=>{plateEditor.queue=[];plateEditor.file=null;$('#plateEditorDialog').close();toast('Photo was not added.');});
-
+    $('#carImages').addEventListener('change',e=>{const incoming=[...e.target.files];state.selectedImages=[...state.selectedImages,...incoming].slice(0,MAX_IMAGES);renderImagePreviews();e.target.value=''});
     $('#submissionForm textarea[name=story]').addEventListener('input',e=>$('#storyCount').textContent=e.target.value.length);$('#submissionForm').addEventListener('submit',e=>{e.preventDefault();saveSubmission('pending')});$('#saveDraftButton').addEventListener('click',()=>saveSubmission('draft'));
     $('#designerForm').addEventListener('submit',saveSettings);$('#previewHomeButton').addEventListener('click',()=>location.hash='#home');$('#editorialForm').addEventListener('submit',publishEditorial);$('#chooseEditorialImage').addEventListener('click',()=>$('#editorialImage').click());$('#editorialImage').addEventListener('change',e=>{state.editorialImage=e.target.files?.[0]||null;if(state.editorialImage)$('#editorialImagePreview img').src=URL.createObjectURL(state.editorialImage)});
     $('#reportForm').addEventListener('submit',submitReport);$('#editPostForm').addEventListener('submit',savePostEdit);$('#profileForm').addEventListener('submit',saveProfile);$('#editProfileButton').addEventListener('click',()=>{const f=$('#profileForm');f.displayName.value=state.profile?.displayName||state.user?.displayName||'';f.location.value=state.profile?.location||'';f.bio.value=state.profile?.bio||'';f.website.value=state.profile?.website||'https://www.';$('#profileDialog').showModal()});

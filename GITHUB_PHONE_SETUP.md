@@ -1,51 +1,120 @@
-# Put PaddockScan online from an Android phone
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-## 1. Create the repository
+    function owner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
 
-1. Open `github.com` in Chrome and sign in.
-2. Tap **+** and choose **New repository**.
-3. Name it `paddockscan-website`.
-4. Set it to **Public** if you want free GitHub Pages hosting.
-5. Do not add a README or other starter files.
-6. Create the repository.
+    function admin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
 
-## 2. Upload the website
+    function validGarageDocument(uid) {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion', 'ownerUid', 'scanId', 'registration', 'title',
+        'resultJson', 'originalStoragePath', 'cutoutStoragePath',
+        'createdAtIso', 'updatedAt'
+      ])
+      && request.resource.data.ownerUid == uid
+      && request.resource.data.scanId is string
+      && request.resource.data.scanId.size() >= 8
+      && request.resource.data.scanId.size() <= 100
+      && request.resource.data.resultJson is string
+      && request.resource.data.resultJson.size() <= 500000
+      && request.resource.data.originalStoragePath is string
+      && request.resource.data.originalStoragePath.matches(
+        'users/' + uid + '/garage/' + request.resource.data.scanId + '/original.jpg'
+      );
+    }
 
-1. Extract `PaddockScan_Full_Website.zip` in Samsung My Files.
-2. In the empty GitHub repository, choose **Add file → Upload files**.
-3. Upload the contents of the extracted folder, not the outer folder itself.
-4. Confirm that `index.html`, `styles.css`, `app.js`, `CNAME` and the `assets` folder are at the repository root.
-5. Commit the upload.
+    match /siteSettings/public {
+      allow read: if true;
+      allow write: if admin();
+    }
 
-GitHub's browser uploader may limit how many files can be selected at once. Upload the root files first, then open/create the `assets` folder and upload its files if necessary.
+    match /posts/{postId} {
+      allow read: if resource.data.published == true || admin();
+      allow create, update, delete: if admin();
+    }
 
-## 3. Enable GitHub Pages
+    match /submissions/{submissionId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status in ['draft', 'pending'];
 
-1. Open the repository **Settings**.
-2. Open **Pages** under Code and automation.
-3. Under Build and deployment, choose **Deploy from a branch**.
-4. Select branch `main` and folder `/(root)`.
-5. Tap **Save**.
-6. GitHub will show the temporary address after deployment.
+      allow read: if admin()
+        || (signedIn() && resource.data.ownerUid == request.auth.uid);
 
-## 4. Connect paddockscan.com
+      allow update: if admin()
+        || (
+          signedIn()
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.status in [
+            'draft', 'pending', 'changes_requested'
+          ]
+        );
 
-The included `CNAME` file contains `paddockscan.com`.
+      allow delete: if admin()
+        || (
+          signedIn()
+          && resource.data.ownerUid == request.auth.uid
+          && resource.data.status == 'draft'
+        );
+    }
 
-At your domain provider, add GitHub Pages DNS records:
+    match /users/{uid} {
+      allow read: if owner(uid) || admin();
 
-- Four `A` records for the root domain (`@`) using the current GitHub Pages IP addresses shown in GitHub's official custom-domain instructions.
-- A `CNAME` record for `www` pointing to your GitHub Pages hostname, normally `YOUR-GITHUB-USERNAME.github.io`.
+      allow create: if owner(uid)
+        && request.resource.data.role == 'user';
 
-Then return to repository **Settings → Pages**, enter `paddockscan.com` under Custom domain and save it. Enable **Enforce HTTPS** after GitHub confirms the DNS.
+      allow update: if admin()
+        || (
+          owner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName', 'email', 'location', 'bio', 'website', 'updatedAt'
+          ])
+        );
 
-## 5. Install the Owner Hub on Android
+      allow delete: if admin() || owner(uid);
 
-1. Open `https://paddockscan.com/#hub` in Chrome.
-2. Open Chrome's menu.
-3. Choose **Add to Home screen** or **Install app**.
-4. The Hub will open like an Android app.
+      match /garage/{scanId} {
+        allow read, delete: if owner(uid) || admin();
+        allow create, update: if (owner(uid) || admin())
+          && scanId == request.resource.data.scanId
+          && validGarageDocument(uid);
 
-## Important
+        match /history/{historyId} {
+          allow read: if owner(uid) || admin();
+          allow write: if false;
+        }
+      }
 
-GitHub Pages hosts the website, but real shared sign-in and uploads require Firebase. Until Firebase is configured, the website clearly operates in local phone preview mode and data exists only on that browser.
+      match /settings/{document=**} {
+        allow read, create, update, delete: if owner(uid);
+      }
+    }
+
+    match /reports/{reportId} {
+      allow create: if signedIn();
+      allow read, update, delete: if admin();
+    }
+
+    match /scanReservations/{reservationId} {
+      allow read, write: if false;
+    }
+
+    match /adminAudit/{auditId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
