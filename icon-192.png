@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Empty premium garage</title>
+  <desc id="desc">A clean modern empty garage interior with dark walls, ceiling lights, roller door, storage cabinets and polished floor.</desc>
+
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20242a"/>
+      <stop offset="1" stop-color="#111419"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2f35"/>
+      <stop offset="0.55" stop-color="#171b20"/>
+      <stop offset="1" stop-color="#090b0e"/>
+    </linearGradient>
+    <linearGradient id="door" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#20252b"/>
+      <stop offset="0.5" stop-color="#333941"/>
+      <stop offset="1" stop-color="#1c2025"/>
+    </linearGradient>
+    <linearGradient id="cabinet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#30363d"/>
+      <stop offset="1" stop-color="#171b20"/>
+    </linearGradient>
+    <linearGradient id="lightGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff9d8" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#fff9d8" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="floorGlow" cx="50%" cy="0%" r="80%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur20" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <pattern id="floorGrid" width="110" height="80" patternUnits="userSpaceOnUse" patternTransform="skewX(-14)">
+      <path d="M110 0H0V80" fill="none" stroke="#ffffff" stroke-opacity="0.055" stroke-width="2"/>
+    </pattern>
+  </defs>
+
+  <!-- Background shell -->
+  <rect width="1600" height="900" fill="#080a0d"/>
+  <path d="M0 0H1600V560H0Z" fill="url(#wall)"/>
+  <path d="M0 560H1600V900H0Z" fill="url(#floor)"/>
+  <path d="M0 560H1600V900H0Z" fill="url(#floorGlow)"/>
+  <path d="M0 560H1600V900H0Z" fill="url(#floorGrid)"/>
+
+  <!-- Ceiling -->
+  <path d="M0 0H1600L1460 120H140L0 0Z" fill="#0c0f13"/>
+  <path d="M140 120H1460" stroke="#3e454e" stroke-width="5"/>
+  <path d="M300 0L410 120M650 0L700 120M950 0L900 120M1300 0L1190 120" stroke="#242a31" stroke-width="5"/>
+
+  <!-- Lighting glow -->
+  <path d="M305 82H595L710 560H190Z" fill="url(#lightGlow)" opacity="0.22" filter="url(#blur20)"/>
+  <path d="M1005 82H1295L1410 560H890Z" fill="url(#lightGlow)" opacity="0.22" filter="url(#blur20)"/>
+  <g filter="url(#shadow)">
+    <rect x="300" y="62" width="300" height="22" rx="11" fill="#f7f1d1"/>
+    <rect x="1000" y="62" width="300" height="22" rx="11" fill="#f7f1d1"/>
+  </g>
+
+  <!-- Rear wall frame -->
+  <rect x="95" y="140" width="1410" height="420" rx="10" fill="#14181d" stroke="#343b43" stroke-width="6"/>
+
+  <!-- Roller door -->
+  <g filter="url(#shadow)">
+    <rect x="405" y="175" width="790" height="355" rx="6" fill="url(#door)" stroke="#4b535d" stroke-width="7"/>
+    <g stroke="#0e1115" stroke-width="7" opacity="0.95">
+      <path d="M410 220H1190M410 265H1190M410 310H1190M410 355H1190M410 400H1190M410 445H1190M410 490H1190"/>
+    </g>
+    <g stroke="#707985" stroke-width="2" opacity="0.35">
+      <path d="M410 213H1190M410 258H1190M410 303H1190M410 348H1190M410 393H1190M410 438H1190M410 483H1190"/>
+    </g>
+    <rect x="770" y="498" width="60" height="12" rx="6" fill="#a9b0b8"/>
+  </g>
+
+  <!-- Left cabinets -->
+  <g filter="url(#shadow)">
+    <rect x="125" y="210" width="235" height="320" rx="8" fill="url(#cabinet)" stroke="#3d444d" stroke-width="5"/>
+    <path d="M242.5 214V526M129 320H356M129 425H356" stroke="#111419" stroke-width="5"/>
+    <g fill="#b8bec5">
+      <rect x="220" y="262" width="45" height="6" rx="3"/>
+      <rect x="220" y="365" width="45" height="6" rx="3"/>
+      <rect x="220" y="470" width="45" height="6" rx="3"/>
+    </g>
+    <rect x="150" y="165" width="185" height="34" rx="7" fill="#20262d" stroke="#3d444d" stroke-width="4"/>
+    <circle cx="180" cy="182" r="8" fill="#d2aa49"/>
+    <path d="M205 182H312" stroke="#79818b" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Right work area -->
+  <g filter="url(#shadow)">
+    <rect x="1240" y="290" width="235" height="240" rx="8" fill="url(#cabinet)" stroke="#3d444d" stroke-width="5"/>
+    <path d="M1244 365H1471M1244 445H1471" stroke="#111419" stroke-width="5"/>
+    <rect x="1215" y="260" width="285" height="34" rx="5" fill="#555d67"/>
+    <rect x="1260" y="180" width="195" height="64" rx="6" fill="#171b20" stroke="#424a54" stroke-width="4"/>
+    <path d="M1285 211H1430" stroke="#d2aa49" stroke-width="8" stroke-linecap="round"/>
+    <g fill="#b8bec5">
+      <rect x="1334" y="330" width="45" height="6" rx="3"/>
+      <rect x="1334" y="405" width="45" height="6" rx="3"/>
+      <rect x="1334" y="485" width="45" height="6" rx="3"/>
+    </g>
+  </g>
+
+  <!-- Wall details -->
+  <g opacity="0.9">
+    <rect x="125" y="548" width="1350" height="12" fill="#d2aa49"/>
+    <rect x="730" y="145" width="140" height="12" rx="6" fill="#d2aa49"/>
+    <circle cx="220" cy="150" r="7" fill="#89929c"/>
+    <circle cx="1380" cy="150" r="7" fill="#89929c"/>
+  </g>
+
+  <!-- Floor perspective guides -->
+  <g stroke="#ffffff" stroke-opacity="0.045" stroke-width="3">
+    <path d="M800 560L700 900M800 560L900 900M530 560L260 900M1070 560L1340 900"/>
+  </g>
+
+  <!-- Drain and parking markers -->
+  <g opacity="0.75">
+    <rect x="695" y="775" width="210" height="14" rx="7" fill="#050608" stroke="#3d444d" stroke-width="3"/>
+    <path d="M725 779V785M755 779V785M785 779V785M815 779V785M845 779V785M875 779V785" stroke="#7d858e" stroke-width="3"/>
+    <path d="M520 815H650M950 815H1080" stroke="#d2aa49" stroke-width="8" stroke-linecap="round"/>
+  </g>
+
+  <!-- Soft foreground vignette -->
+  <rect width="1600" height="900" fill="none" stroke="#000000" stroke-opacity="0.58" stroke-width="70"/>
+</svg>
